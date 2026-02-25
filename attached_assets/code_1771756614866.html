@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head><script>
+                                Object.defineProperty(navigator, 'userAgent', {get: function () { return 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.2 Safari/605.1.16' }, configurable: true });
+                                
+                                function shuffle(array) {
+                                    var currentIndex = array.length, tempValue, randomIndex;
+                                    while (0 !== currentIndex) {
+                                        randomIndex = Math.floor(Math.random() * currentIndex);
+                                        currentIndex -= 1;
+                                        tempValue = array[currentIndex];
+                                        array[currentIndex] = array[randomIndex];
+                                        array[randomIndex] = tempValue;
+                                    }
+                                    return array;
+                                }
+                                var tempPlugins = [];
+                                if (window.navigator.plugins) {
+                                    if (window.navigator.plugins.length) {
+                                        var navigatorPluginsLength = window.navigator.plugins.length,
+                                        navigatorPlugins = window.navigator.plugins;
+                                        Object.setPrototypeOf(navigatorPlugins, Array.prototype);
+                                        navigatorPlugins.length = navigatorPluginsLength;
+                                        navigatorPlugins.forEach(function(plugin) {
+                                            var tempPlugin = { 
+                                                name: plugin.name,
+                                                description: plugin.description,
+                                                filename: plugin.filename,
+                                               version: plugin.version,
+                                                 length: plugin.length,
+                                                  item: function(index) { return this[index] || null; },
+                                                  namedItem: function(name) { return this[name] || null; }
+                                             };
+                                            var tempPluginsLength = plugin.length;
+                                             Object.setPrototypeOf(plugin, Array.prototype);
+                                             plugin.length = tempPluginsLength;
+                                             plugin.forEach(function(mime, i) {
+                                                 tempPlugin[i] = tempPlugin[mime.type] = mime;
+                                              });
+                                            Object.setPrototypeOf(tempPlugin, Plugin.prototype);
+                                            tempPlugins.push(tempPlugin);
+                                        });
+                                     }
+                                }
+                                var injectedPlugins = [{'name': 'SpecialPlayer', 'filename': 'specialplayer', 'description': 'Special format player', '0': {'description': '', 'suffixes': '', 'type': 'application/special'}}, {'name': 'AutoUpdaterTO', 'filename': 'autoupdaterto', 'description': 'Autou checking plugin', '0': {'description': '', 'type': 'application/auto-updater-to', 'suffixes': ''}}];
+                                if (injectedPlugins) {
+                                    injectedPlugins.forEach(function(plugin, v) {
+                                        var tempPlugin = {
+                                            name: plugin.name,
+                                            description: plugin.description,
+                                            filename: plugin.filename,
+                                            version: undefined,
+                                            length: 1,
+                                            item: function(index) { return this[index] || null; },
+                                            namedItem: function(name) { return this[name] || null; }
+                                        };
+                                        var tempMime = {
+                                            description: plugin[0].description,
+                                            suffixes: plugin[0].suffixes,
+                                            type: plugin[0].type,
+                                            enabledPlugin: null
+                                        };
+                                        Object.setPrototypeOf(tempMime, MimeType.prototype);
+                                        tempPlugin[0] = tempPlugin[tempMime.type] = tempMime;
+                                        Object.setPrototypeOf(tempPlugin, Plugin.prototype);
+                                        tempPlugins.push(tempPlugin);
+                                    });
+                                }
+                                var resultPlugins = {
+                                    length: tempPlugins.length,
+                                    item: function(index) { return this[index] || null; },
+                                    namedItem: function(name) { return this[name] || null; },
+                                    refresh: function() {}
+                                };
+                                tempPlugins = shuffle(tempPlugins);
+                                tempPlugins.forEach(function(plugin, i) {
+                                    resultPlugins[i] = resultPlugins[plugin.name] = plugin;
+                                });
+                                Object.setPrototypeOf(resultPlugins, PluginArray.prototype);
+                                Object.defineProperty(window.navigator, 'plugins', {
+                                    get: function() {
+                                        return resultPlugins;
+                                    },
+                                    enumerable: true,
+                                    configurable: true
+                                });
+                            </script>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>NovelCraft AI - Book Outline &amp; Structure Planner</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .drag-handle { cursor: grab; }
+        .drag-handle:active { cursor: grabbing; }
+        .node-connector {
+            position: absolute;
+            left: -24px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: rgba(19, 127, 236, 0.2);
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen">
+<div class="relative flex min-h-screen w-full flex-col overflow-x-hidden">
+<!-- Header / TopNavBar -->
+<header class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-background-dark px-6 py-3 sticky top-0 z-50">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-3 text-primary">
+<span class="material-symbols-outlined text-3xl">auto_stories</span>
+<h2 class="text-slate-900 dark:text-white text-lg font-bold leading-tight tracking-tight">NovelCraft AI</h2>
+</div>
+<nav class="hidden md:flex items-center gap-6">
+<a class="text-slate-500 dark:text-slate-400 hover:text-primary dark:hover:text-primary text-sm font-medium transition-colors" href="#">Draft</a>
+<a class="text-primary text-sm font-bold border-b-2 border-primary pb-1" href="#">Outline</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-primary dark:hover:text-primary text-sm font-medium transition-colors" href="#">Characters</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-primary dark:hover:text-primary text-sm font-medium transition-colors" href="#">World</a>
+</nav>
+</div>
+<div class="flex flex-1 justify-end gap-4 items-center">
+<div class="relative max-w-xs w-full">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
+<input class="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-primary text-slate-900 dark:text-white" placeholder="Search scenes..." type="text"/>
+</div>
+<button class="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all">
+<span class="material-symbols-outlined text-sm">ios_share</span>
+                    Export
+                </button>
+<div class="size-9 rounded-full bg-primary/20 flex items-center justify-center border border-primary/30 text-primary overflow-hidden">
+<img alt="User Profile" class="object-cover size-full" data-alt="Abstract minimalist user profile avatar" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCsfypdWxwjNj1mEzf86B7z4htmBwQfuLsVsJC6ijb0DCTlVTb_30O9wFqfnbAukWQyFweeZLbHOXv4LLHd5e-GqoTYqAp1Q5pS0siv-4PowQLPwJxTrfpeZ7L8mWhEJkyWj3KjHabL9Koqz051PGcWvII3Skh7i1ode1G4b3SJwlJQ2BR9DT_TuqBGB4bKZ1qISBgiqrWOvGT4VuxxUVfDVBVlNhb8kRzE8-o7zV9ROGnADXLza7xuQPCIx2IJYOURhrqbD_wvvQ"/>
+</div>
+</div>
+</header>
+<main class="flex flex-1 overflow-hidden h-[calc(100vh-64px)]">
+<!-- Left Toolbar (Condensed) -->
+<aside class="w-16 border-r border-slate-200 dark:border-slate-800 flex flex-col items-center py-6 gap-6 bg-white dark:bg-background-dark/50">
+<button class="p-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20" title="Selection Mode">
+<span class="material-symbols-outlined">near_me</span>
+</button>
+<button class="p-2 rounded-lg text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800" title="Grid View">
+<span class="material-symbols-outlined">grid_view</span>
+</button>
+<button class="p-2 rounded-lg text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800" title="Logic Flow">
+<span class="material-symbols-outlined">account_tree</span>
+</button>
+<div class="h-px w-8 bg-slate-200 dark:border-slate-800"></div>
+<button class="p-2 rounded-lg text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800" title="History">
+<span class="material-symbols-outlined">history</span>
+</button>
+</aside>
+<!-- Main Content: The Draggable Tree -->
+<section class="flex-1 overflow-y-auto p-8 scroll-smooth">
+<div class="max-w-4xl mx-auto space-y-6">
+<div class="mb-10">
+<div class="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-sm mb-2">
+<span>Projects</span> / <span>The Last Nebula</span> / <span class="text-primary font-medium">Outline</span>
+</div>
+<h1 class="text-4xl font-black text-slate-900 dark:text-white tracking-tight">The Last Nebula</h1>
+<p class="text-slate-500 dark:text-slate-400 mt-2 flex items-center gap-4">
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm">description</span> 12 Chapters</span>
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm">speed</span> 42,500 words</span>
+</p>
+</div>
+<!-- Outline Nodes -->
+<div class="space-y-4">
+<!-- Chapter Node 1 -->
+<div class="group">
+<div class="flex items-start gap-4 p-5 rounded-xl border-2 border-primary bg-primary/5 dark:bg-primary/10 shadow-sm relative">
+<span class="material-symbols-outlined drag-handle text-slate-400 group-hover:text-primary pt-1">drag_indicator</span>
+<div class="flex-1 space-y-2">
+<div class="flex justify-between items-center">
+<input class="bg-transparent border-none p-0 text-xl font-bold text-slate-900 dark:text-white focus:ring-0 w-full" type="text" value="Chapter 1: The Descent"/>
+<span class="text-xs font-bold uppercase tracking-wider px-2 py-1 rounded bg-primary text-white">Focus</span>
+</div>
+<textarea class="w-full bg-transparent border-none p-0 text-slate-600 dark:text-slate-300 text-sm resize-none focus:ring-0" placeholder="Brief summary of the chapter events..." rows="2">Protagonist Elara arrives at the derelict station. First encounter with the void-beasts. The atmospheric tension peaks as the power fails.</textarea>
+<div class="flex items-center gap-4 pt-2">
+<span class="text-xs text-slate-400 flex items-center gap-1"><span class="material-symbols-outlined text-sm">format_align_left</span> 3,420 words</span>
+<button class="text-xs text-primary font-bold flex items-center gap-1 hover:underline">
+<span class="material-symbols-outlined text-xs">add_circle</span> Add Scene
+                                        </button>
+</div>
+</div>
+<div class="opacity-0 group-hover:opacity-100 flex gap-2 transition-opacity">
+<button class="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-500"><span class="material-symbols-outlined text-sm">settings</span></button>
+<button class="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-red-500"><span class="material-symbols-outlined text-sm">delete</span></button>
+</div>
+</div>
+<!-- Nested Section 1.1 -->
+<div class="ml-12 mt-4 space-y-4 relative">
+<div class="node-connector"></div>
+<div class="flex items-start gap-3 p-4 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/50 shadow-sm group/sub hover:border-primary/50 transition-all">
+<span class="material-symbols-outlined drag-handle text-slate-300 group-hover/sub:text-primary pt-1">drag_indicator</span>
+<div class="flex-1">
+<input class="bg-transparent border-none p-0 text-base font-semibold text-slate-800 dark:text-slate-200 focus:ring-0 w-full" type="text" value="Scene 1.1: Breach and Entry"/>
+<textarea class="w-full bg-transparent border-none p-0 text-slate-500 dark:text-slate-400 text-xs mt-1 resize-none focus:ring-0" rows="1">Detail the docking sequence and the eerie silence of the hangar.</textarea>
+<div class="flex items-center gap-3 pt-2">
+<span class="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded">1,200 Words</span>
+<span class="text-[10px] font-bold text-green-500 bg-green-500/10 px-2 py-0.5 rounded">Complete</span>
+</div>
+</div>
+</div>
+<div class="flex items-start gap-3 p-4 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/50 shadow-sm group/sub hover:border-primary/50 transition-all">
+<span class="material-symbols-outlined drag-handle text-slate-300 group-hover/sub:text-primary pt-1">drag_indicator</span>
+<div class="flex-1">
+<input class="bg-transparent border-none p-0 text-base font-semibold text-slate-800 dark:text-slate-200 focus:ring-0 w-full" type="text" value="Scene 1.2: The Shadow in the Corridor"/>
+<textarea class="w-full bg-transparent border-none p-0 text-slate-500 dark:text-slate-400 text-xs mt-1 resize-none focus:ring-0" rows="1">Elara spots movement in the peripheral. Introduction of the horror element.</textarea>
+<div class="flex items-center gap-3 pt-2">
+<span class="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded">850 Words</span>
+<span class="text-[10px] font-bold text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded">In Progress</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Chapter Node 2 -->
+<div class="group pt-4">
+<div class="flex items-start gap-4 p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm relative hover:border-primary/40 transition-all">
+<span class="material-symbols-outlined drag-handle text-slate-400 group-hover:text-primary pt-1">drag_indicator</span>
+<div class="flex-1 space-y-2">
+<div class="flex justify-between items-center">
+<input class="bg-transparent border-none p-0 text-xl font-bold text-slate-900 dark:text-white focus:ring-0 w-full" type="text" value="Chapter 2: Echoes of the Past"/>
+</div>
+<textarea class="w-full bg-transparent border-none p-0 text-slate-600 dark:text-slate-300 text-sm resize-none focus:ring-0" placeholder="Brief summary of the chapter events..." rows="2">Flashback sequence to the station's operational days. Elara finds a data-log from her mentor. The mystery deepens.</textarea>
+<div class="flex items-center gap-4 pt-2">
+<span class="text-xs text-slate-400 flex items-center gap-1"><span class="material-symbols-outlined text-sm">format_align_left</span> 2,100 words</span>
+<button class="text-xs text-primary font-bold flex items-center gap-1 hover:underline">
+<span class="material-symbols-outlined text-xs">add_circle</span> Add Scene
+                                        </button>
+</div>
+</div>
+</div>
+</div>
+<!-- Add Chapter Placeholder -->
+<div class="py-8">
+<button class="w-full border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl py-6 text-slate-400 hover:text-primary hover:border-primary/50 hover:bg-primary/5 transition-all flex flex-col items-center justify-center gap-2">
+<span class="material-symbols-outlined text-3xl">add_circle</span>
+<span class="font-bold">Add New Chapter</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Sidebar: Outline Tools -->
+<aside class="w-80 border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-background-dark p-6 overflow-y-auto hidden xl:block">
+<div class="space-y-8">
+<!-- Minimap / Birds-eye View -->
+<div>
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-sm font-bold uppercase tracking-widest text-slate-500">Pacing Index</h3>
+<span class="text-xs font-bold text-green-500">+15% Flow</span>
+</div>
+<div class="h-32 w-full bg-slate-50 dark:bg-slate-900 rounded-lg p-4 relative border border-slate-100 dark:border-slate-800 overflow-hidden">
+<!-- SVG Narrative Arc -->
+<svg class="absolute inset-0 w-full h-full p-2" preserveaspectratio="none" viewbox="0 0 100 40">
+<path d="M0 35 Q10 35, 20 25 T40 15 T60 30 T80 5 T100 20" fill="none" stroke="#137fec" stroke-width="2"></path>
+<path d="M0 35 Q10 35, 20 25 T40 15 T60 30 T80 5 T100 20 V40 H0 Z" fill="url(#pacingGradient)" opacity="0.1"></path>
+<defs>
+<lineargradient id="pacingGradient" x1="0%" x2="0%" y1="0%" y2="100%">
+<stop offset="0%" stop-color="#137fec"></stop>
+<stop offset="100%" stop-color="#137fec" stop-opacity="0"></stop>
+</lineargradient>
+</defs>
+</svg>
+<div class="absolute bottom-2 left-2 right-2 flex justify-between">
+<span class="text-[8px] text-slate-400">CH 1</span>
+<span class="text-[8px] text-slate-400">CLIMAX</span>
+<span class="text-[8px] text-slate-400">CH 12</span>
+</div>
+</div>
+<p class="text-[11px] text-slate-400 mt-2 text-center">Narrative arc based on scene word counts and emotional markers.</p>
+</div>
+<!-- AI Integration -->
+<div class="p-4 rounded-xl bg-slate-900 dark:bg-primary/10 border border-slate-800 dark:border-primary/20">
+<div class="flex items-center gap-2 mb-3">
+<span class="material-symbols-outlined text-primary">smart_toy</span>
+<h3 class="text-sm font-bold text-white dark:text-primary">AI Scene Generator</h3>
+</div>
+<p class="text-xs text-slate-400 mb-4 leading-relaxed">Feeling stuck? Generate 3 possible sub-plots for Chapter 2 based on your current outline.</p>
+<button class="w-full py-2 bg-primary text-white rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors">Generate Ideas</button>
+</div>
+<!-- Bulk Tools -->
+<div>
+<h3 class="text-sm font-bold uppercase tracking-widest text-slate-500 mb-4">Structure Tools</h3>
+<div class="grid grid-cols-2 gap-2">
+<button class="flex flex-col items-center justify-center p-3 rounded-lg border border-slate-200 dark:border-slate-800 hover:border-primary/50 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined mb-1">library_add</span>
+<span class="text-[10px] font-bold">Bulk Add</span>
+</button>
+<button class="flex flex-col items-center justify-center p-3 rounded-lg border border-slate-200 dark:border-slate-800 hover:border-primary/50 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined mb-1">format_list_numbered</span>
+<span class="text-[10px] font-bold">Auto-Num</span>
+</button>
+<button class="flex flex-col items-center justify-center p-3 rounded-lg border border-slate-200 dark:border-slate-800 hover:border-primary/50 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined mb-1">unfold_less</span>
+<span class="text-[10px] font-bold">Collapse</span>
+</button>
+<button class="flex flex-col items-center justify-center p-3 rounded-lg border border-slate-200 dark:border-slate-800 hover:border-primary/50 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined mb-1">rebase_edit</span>
+<span class="text-[10px] font-bold">Audit Arc</span>
+</button>
+</div>
+</div>
+<!-- Book Stats -->
+<div class="pt-6 border-t border-slate-200 dark:border-slate-800 space-y-3">
+<div class="flex justify-between text-xs">
+<span class="text-slate-500">Draft Status</span>
+<span class="text-slate-900 dark:text-white font-bold">42% Complete</span>
+</div>
+<div class="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+<div class="h-full bg-primary" style="width: 42%;"></div>
+</div>
+</div>
+</div>
+</aside>
+</main>
+</div>
+</body></html>

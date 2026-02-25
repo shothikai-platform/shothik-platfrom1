@@ -1,0 +1,182 @@
+import { defineSchema, defineTable } from "convex/server";
+import { v } from "convex/values";
+export default defineSchema({
+    projects: defineTable({
+        title: v.string(),
+        type: v.union(v.literal("book"), v.literal("research"), v.literal("assignment")),
+        template: v.optional(v.string()),
+        description: v.optional(v.string()),
+        content: v.optional(v.string()),
+        sections: v.optional(v.array(v.object({
+            id: v.string(),
+            title: v.string(),
+            content: v.optional(v.string()),
+            order: v.number(),
+            children: v.optional(v.array(v.object({
+                id: v.string(),
+                title: v.string(),
+                content: v.optional(v.string()),
+                order: v.number(),
+                status: v.optional(v.string()),
+            }))),
+        }))),
+        settings: v.optional(v.object({
+            citationStyle: v.optional(v.string()),
+            targetJournal: v.optional(v.string()),
+            deadline: v.optional(v.string()),
+            dailyGoal: v.optional(v.number()),
+            fontFamily: v.optional(v.string()),
+            fontSize: v.optional(v.number()),
+            trimSize: v.optional(v.string()),
+        })),
+        wordCount: v.optional(v.number()),
+        progress: v.optional(v.number()),
+        lastEditedAt: v.optional(v.number()),
+        userId: v.optional(v.string()),
+        starred: v.optional(v.boolean()),
+    })
+        .index("by_user", ["userId"])
+        .index("by_type", ["type"])
+        .index("by_user_type", ["userId", "type"]),
+    projectVersions: defineTable({
+        projectId: v.id("projects"),
+        content: v.string(),
+        sections: v.optional(v.any()),
+        savedAt: v.number(),
+        label: v.optional(v.string()),
+    }).index("by_project", ["projectId"]),
+    books: defineTable({
+        userId: v.string(),
+        projectId: v.optional(v.id("projects")),
+        status: v.union(v.literal("draft"), v.literal("submitted"), v.literal("in_review"), v.literal("approved"), v.literal("rejected"), v.literal("uploading"), v.literal("published")),
+        manuscriptStorageId: v.optional(v.id("_storage")),
+        manuscriptName: v.optional(v.string()),
+        manuscriptSize: v.optional(v.number()),
+        manuscriptFormat: v.optional(v.string()),
+        title: v.string(),
+        subtitle: v.optional(v.string()),
+        description: v.optional(v.string()),
+        language: v.optional(v.string()),
+        category: v.optional(v.string()),
+        subcategory: v.optional(v.string()),
+        keywords: v.optional(v.array(v.string())),
+        coverStorageId: v.optional(v.id("_storage")),
+        coverDimensions: v.optional(v.object({
+            width: v.number(),
+            height: v.number(),
+        })),
+        listPrice: v.optional(v.string()),
+        currency: v.optional(v.string()),
+        agreementAccepted: v.optional(v.boolean()),
+        agreementName: v.optional(v.string()),
+        agreementScrolled: v.optional(v.boolean()),
+        currentStep: v.optional(v.number()),
+        completedSteps: v.optional(v.array(v.string())),
+        rejectionReason: v.optional(v.string()),
+        rejectionCategory: v.optional(v.string()),
+        reviewNotes: v.optional(v.string()),
+        reviewedBy: v.optional(v.string()),
+        reviewedAt: v.optional(v.string()),
+        resubmissionCount: v.optional(v.number()),
+        previousRejections: v.optional(v.array(v.object({
+            reason: v.string(),
+            category: v.string(),
+            reviewNotes: v.optional(v.string()),
+            rejectedAt: v.string(),
+            reviewedBy: v.optional(v.string()),
+        }))),
+        googlePlayUrl: v.optional(v.string()),
+        isbn: v.optional(v.string()),
+        salesCount: v.optional(v.number()),
+        totalEarnings: v.optional(v.number()),
+        distributionEnabled: v.optional(v.boolean()),
+        distributionChannels: v.optional(v.array(v.object({
+            channelId: v.string(),
+            channelName: v.string(),
+            status: v.union(v.literal("pending"), v.literal("live"), v.literal("processing"), v.literal("failed"), v.literal("removed")),
+            url: v.optional(v.string()),
+            publishedAt: v.optional(v.string()),
+        }))),
+        publishDriveBookId: v.optional(v.string()),
+        notifications: v.optional(v.array(v.object({
+            id: v.string(),
+            type: v.string(),
+            message: v.string(),
+            read: v.boolean(),
+            createdAt: v.string(),
+        }))),
+        timestamps: v.optional(v.object({
+            draft: v.optional(v.string()),
+            submitted: v.optional(v.string()),
+            in_review: v.optional(v.string()),
+            approved: v.optional(v.string()),
+            uploading: v.optional(v.string()),
+            published: v.optional(v.string()),
+            rejected: v.optional(v.string()),
+        })),
+        createdAt: v.number(),
+        updatedAt: v.number(),
+    })
+        .index("by_user", ["userId"])
+        .index("by_user_status", ["userId", "status"])
+        .index("by_status", ["status"]),
+    salesRecords: defineTable({
+        bookId: v.id("books"),
+        userId: v.string(),
+        channel: v.string(),
+        period: v.string(),
+        unitsSold: v.number(),
+        grossRevenue: v.number(),
+        netRevenue: v.number(),
+        royaltyAmount: v.number(),
+        currency: v.string(),
+        recordedAt: v.number(),
+    })
+        .index("by_book", ["bookId"])
+        .index("by_user", ["userId"])
+        .index("by_user_period", ["userId", "period"])
+        .index("by_book_period", ["bookId", "period"]),
+    payouts: defineTable({
+        userId: v.string(),
+        amount: v.number(),
+        currency: v.string(),
+        status: v.union(v.literal("pending"), v.literal("processing"), v.literal("completed"), v.literal("failed"), v.literal("cancelled")),
+        method: v.union(v.literal("stripe"), v.literal("payoneer"), v.literal("bank_transfer")),
+        stripePayoutId: v.optional(v.string()),
+        payoneerPayoutId: v.optional(v.string()),
+        failureReason: v.optional(v.string()),
+        processedAt: v.optional(v.number()),
+        periodStart: v.string(),
+        periodEnd: v.string(),
+        bookBreakdown: v.optional(v.array(v.object({
+            bookId: v.string(),
+            bookTitle: v.string(),
+            amount: v.number(),
+            unitsSold: v.number(),
+        }))),
+        createdAt: v.number(),
+        updatedAt: v.number(),
+    })
+        .index("by_user", ["userId"])
+        .index("by_status", ["status"])
+        .index("by_user_status", ["userId", "status"]),
+    payoutAccounts: defineTable({
+        userId: v.string(),
+        method: v.union(v.literal("stripe"), v.literal("payoneer"), v.literal("bank_transfer")),
+        isDefault: v.boolean(),
+        stripeConnectAccountId: v.optional(v.string()),
+        stripeOnboardingComplete: v.optional(v.boolean()),
+        payoneerAccountEmail: v.optional(v.string()),
+        payoneerPayeeId: v.optional(v.string()),
+        bankDetails: v.optional(v.object({
+            accountHolder: v.string(),
+            bankName: v.string(),
+            lastFourDigits: v.string(),
+            country: v.string(),
+        })),
+        createdAt: v.number(),
+        updatedAt: v.number(),
+    })
+        .index("by_user", ["userId"])
+        .index("by_user_method", ["userId", "method"]),
+});

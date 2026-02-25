@@ -1,0 +1,271 @@
+import { NextRequest, NextResponse } from "next/server";
+import { jwtVerify, createRemoteJWKSet } from "jose";
+import {
+  getRateLimitForPath,
+  getMaxWindowMs,
+  MAX_RATE_LIMIT_STORE_SIZE,
+} from "./lib/rate-limit-config";
+import { incrementCounter, setGauge, maybeLogMetrics } from "./lib/runtime-metrics";
+
+const RATE_LIMIT_STORE = new Map<string, { timestamps: number[] }>();
+
+// JWKS URL for JWT verification
+const JWKS_URL = process.env.NEXT_PUBLIC_CONVEX_URL
+  ? `${process.env.NEXT_PUBLIC_CONVEX_URL}/.well-known/jwks.json`
+  : null;
+
+let jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
+if (JWKS_URL) {
+  jwks = createRemoteJWKSet(new URL(JWKS_URL));
+}
+
+function getClientId(request: NextRequest): string {
+  return (
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    request.headers.get("x-real-ip") ||
+    "unknown"
+  );
+}
+
+function checkRateLimit(
+  key: string,
+  config: { windowMs: number; maxRequests: number }
+): { limited: boolean; remaining: number; resetAt: number } {
+  const now = Date.now();
+  let entry = RATE_LIMIT_STORE.get(key);
+  if (!entry) {
+    entry = { timestamps: [] };
+    RATE_LIMIT_STORE.set(key, entry);
+  }
+
+  entry.timestamps = entry.timestamps.filter((t) => t > now - config.windowMs);
+
+  if (entry.timestamps.length >= config.maxRequests) {
+    incrementCounter("ratelimit.rejected");
+    return {
+      limited: true,
+      remaining: 0,
+      resetAt: entry.timestamps[0] + config.windowMs,
+    };
+  }
+
+  entry.timestamps.push(now);
+  return {
+    limited: false,
+    remaining: config.maxRequests - entry.timestamps.length,
+    resetAt: now + config.windowMs,
+  };
+}
+
+let lastCleanup = Date.now();
+function cleanupStore() {
+  const now = Date.now();
+  if (now - lastCleanup < 60_000) return;
+  lastCleanup = now;
+
+  const maxWindowMs = getMaxWindowMs();
+
+  for (const [key, entry] of RATE_LIMIT_STORE) {
+    entry.timestamps = entry.timestamps.filter((t) => t > now - maxWindowMs);
+    if (entry.timestamps.length === 0) {
+      RATE_LIMIT_STORE.delete(key);
+    }
+  }
+
+  if (RATE_LIMIT_STORE.size > MAX_RATE_LIMIT_STORE_SIZE) {
+    const excess = RATE_LIMIT_STORE.size - MAX_RATE_LIMIT_STORE_SIZE;
+    const keys = RATE_LIMIT_STORE.keys();
+    for (let i = 0; i < excess; i++) {
+      const next = keys.next();
+      if (!next.done) RATE_LIMIT_STORE.delete(next.value);
+    }
+    incrementCounter("ratelimit.store_evictions", excess);
+  }
+
+  setGauge("ratelimit.store_size", RATE_LIMIT_STORE.size);
+  maybeLogMetrics();
+}
+
+const SECURITY_HEADERS: Record<string, string> = {
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-XSS-Protection": "1; mode=block",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy":
+    "camera=(), microphone=(), geolocation=(self), payment=(self)",
+};
+
+function addSecurityHeaders(response: NextResponse) {
+  for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+    response.headers.set(key, value);
+  }
+  return response;
+}
+
+async function verifyJWT(token: string): Promise<{ valid: boolean; payload?: any; error?: string }> {
+  if (!jwks) {
+    return { valid: false, error: "JWKS not configured" };
+  }
+
+  try {
+    const { payload } = await jwtVerify(token, jwks, {
+      algorithms: ["RS256"],
+      issuer: process.env.NEXT_PUBLIC_CONVEX_URL,
+    });
+    return { valid: true, payload };
+  } catch (error) {
+    return { valid: false, error: (error as Error).message };
+  }
+}
+
+export async function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+  const token = req.cookies.get("jwt_token")?.value;
+
+  // API routes - apply rate limiting and auth
+  if (pathname.startsWith("/api/")) {
+    cleanupStore();
+
+    // Public health check endpoints
+    if (pathname === "/api/health" || pathname.startsWith("/api/.well-known")) {
+      return addSecurityHeaders(NextResponse.next());
+    }
+
+    // Auth endpoints - stricter rate limiting
+    if (pathname.startsWith("/api/auth/")) {
+      const clientId = getClientId(req);
+      const rateLimitKey = `auth:${clientId}`;
+      const { limited, resetAt } = checkRateLimit(rateLimitKey, {
+        windowMs: 15 * 60 * 1000, // 15 minutes
+        maxRequests: 10, // 10 attempts
+      });
+
+      if (limited) {
+        const retryAfter = Math.ceil((resetAt - Date.now()) / 1000);
+        return addSecurityHeaders(
+          new NextResponse(
+            JSON.stringify({
+              error: "Too many authentication attempts",
+              message: "Please try again later",
+              retryAfter,
+            }),
+            {
+              status: 429,
+              headers: {
+                "Content-Type": "application/json",
+                "Retry-After": String(retryAfter),
+              },
+            }
+          )
+        );
+      }
+    }
+
+    // Protected API routes - verify JWT
+    const protectedRoutes = [
+      "/api/writing/",
+      "/api/studio/",
+      "/api/publishing/",
+      "/api/billing/",
+      "/api/admin/",
+    ];
+
+    const isProtected = protectedRoutes.some((route) =
+      pathname.startsWith(route)
+    );
+
+    if (isProtected) {
+      if (!token) {
+        return addSecurityHeaders(
+          new NextResponse(
+            JSON.stringify({ error: "Authentication required" }),
+            {
+              status: 401,
+              headers: { "Content-Type": "application/json" },
+            }
+          )
+        );
+      }
+
+      const { valid, error } = await verifyJWT(token);
+
+      if (!valid) {
+        return addSecurityHeaders(
+          new NextResponse(
+            JSON.stringify({ error: "Invalid token", details: error }),
+            {
+              status: 401,
+              headers: { "Content-Type": "application/json" },
+            }
+          )
+        );
+      }
+    }
+
+    // General rate limiting
+    const clientId = getClientId(req);
+    const routePrefix = "/" + pathname.split("/").slice(1, 3).join("/");
+    const rateLimitKey = `${clientId}:${routePrefix}`;
+    const rateConfig = getRateLimitForPath(pathname);
+
+    const { limited, remaining, resetAt } = checkRateLimit(
+      rateLimitKey,
+      rateConfig
+    );
+
+    if (limited) {
+      const retryAfter = Math.ceil((resetAt - Date.now()) / 1000);
+      return addSecurityHeaders(
+        new NextResponse(
+          JSON.stringify({
+            error: "Too many requests",
+            message: "Please wait before trying again",
+            retryAfter,
+          }),
+          {
+            status: 429,
+            headers: {
+              "Content-Type": "application/json",
+              "Retry-After": String(retryAfter),
+              "X-RateLimit-Remaining": "0",
+              "X-RateLimit-Reset": String(Math.ceil(resetAt / 1000)),
+            },
+          }
+        )
+      );
+    }
+
+    const response = NextResponse.next();
+    response.headers.set("X-RateLimit-Remaining", String(remaining));
+    response.headers.set(
+      "X-RateLimit-Reset",
+      String(Math.ceil(resetAt / 1000))
+    );
+    response.headers.set(
+      "Cache-Control",
+      "no-store, no-cache, must-revalidate"
+    );
+    return addSecurityHeaders(response);
+  }
+
+  // Dashboard routes - check token exists (will be verified by API calls)
+  if (pathname.startsWith("/dashboard") && !token) {
+    return NextResponse.redirect(new URL("/auth/login", req.url));
+  }
+
+  // Auth routes - redirect if already logged in
+  if (pathname.startsWith("/auth") && token) {
+    return NextResponse.redirect(new URL("/dashboard", req.url));
+  }
+
+  return addSecurityHeaders(NextResponse.next());
+}
+
+export const config = {
+  matcher: [
+    "/dashboard/:path*",
+    "/auth/:path*",
+    "/api/:path*",
+    "/((?!_next/static|_next/image|favicon.ico).*)",
+  ],
+};

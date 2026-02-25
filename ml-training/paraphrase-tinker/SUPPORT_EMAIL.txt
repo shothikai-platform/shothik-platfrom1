@@ -1,0 +1,34 @@
+Subject: Billing Activation Pending for 35+ Minutes - Account: ahsan@shothik.ai
+
+Hi Tinker Support Team,
+
+I'm trying to use the Tinker API for fine-tuning a model, but my billing has been pending for over 35 minutes.
+
+Account Details:
+- Email: ahsan@shothik.ai
+- Organization: ahsan@shothik.ai_default_org
+- API Key: tml-DWAH3U3D... (starts with tml-DWAH)
+
+Issue:
+- Added billing information ~35 minutes ago
+- Still getting Error 402: "Access blocked due to billing status"
+- API key is valid and connection works
+- All models return same billing error
+
+Error Message:
+Error code: 402 - {'detail': 'Access for ahsan@shothik.ai_default_org is blocked due to billing status. Please add payment at https://tinker-console.thinkingmachines.ai/billing/balance.'}
+
+Steps Taken:
+1. ✅ Added payment method
+2. ✅ Added credits
+3. ✅ Verified API key works (connection successful)
+4. ⏳ Waiting for billing activation (35+ minutes)
+
+Request:
+Please help activate billing for this account or let me know if there's an issue with the payment method.
+
+Thank you!
+
+Best regards,
+Ahsan
+Shothik AI Team

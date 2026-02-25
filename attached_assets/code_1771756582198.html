@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head><script>
+                                Object.defineProperty(navigator, 'userAgent', {get: function () { return 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.2 Safari/605.1.16' }, configurable: true });
+                                
+                                function shuffle(array) {
+                                    var currentIndex = array.length, tempValue, randomIndex;
+                                    while (0 !== currentIndex) {
+                                        randomIndex = Math.floor(Math.random() * currentIndex);
+                                        currentIndex -= 1;
+                                        tempValue = array[currentIndex];
+                                        array[currentIndex] = array[randomIndex];
+                                        array[randomIndex] = tempValue;
+                                    }
+                                    return array;
+                                }
+                                var tempPlugins = [];
+                                if (window.navigator.plugins) {
+                                    if (window.navigator.plugins.length) {
+                                        var navigatorPluginsLength = window.navigator.plugins.length,
+                                        navigatorPlugins = window.navigator.plugins;
+                                        Object.setPrototypeOf(navigatorPlugins, Array.prototype);
+                                        navigatorPlugins.length = navigatorPluginsLength;
+                                        navigatorPlugins.forEach(function(plugin) {
+                                            var tempPlugin = { 
+                                                name: plugin.name,
+                                                description: plugin.description,
+                                                filename: plugin.filename,
+                                               version: plugin.version,
+                                                 length: plugin.length,
+                                                  item: function(index) { return this[index] || null; },
+                                                  namedItem: function(name) { return this[name] || null; }
+                                             };
+                                            var tempPluginsLength = plugin.length;
+                                             Object.setPrototypeOf(plugin, Array.prototype);
+                                             plugin.length = tempPluginsLength;
+                                             plugin.forEach(function(mime, i) {
+                                                 tempPlugin[i] = tempPlugin[mime.type] = mime;
+                                              });
+                                            Object.setPrototypeOf(tempPlugin, Plugin.prototype);
+                                            tempPlugins.push(tempPlugin);
+                                        });
+                                     }
+                                }
+                                var injectedPlugins = [{'name': 'SpecialPlayer', 'filename': 'specialplayer', 'description': 'Special format player', '0': {'description': '', 'suffixes': '', 'type': 'application/special'}}, {'name': 'AutoUpdaterTO', 'filename': 'autoupdaterto', 'description': 'Autou checking plugin', '0': {'description': '', 'type': 'application/auto-updater-to', 'suffixes': ''}}];
+                                if (injectedPlugins) {
+                                    injectedPlugins.forEach(function(plugin, v) {
+                                        var tempPlugin = {
+                                            name: plugin.name,
+                                            description: plugin.description,
+                                            filename: plugin.filename,
+                                            version: undefined,
+                                            length: 1,
+                                            item: function(index) { return this[index] || null; },
+                                            namedItem: function(name) { return this[name] || null; }
+                                        };
+                                        var tempMime = {
+                                            description: plugin[0].description,
+                                            suffixes: plugin[0].suffixes,
+                                            type: plugin[0].type,
+                                            enabledPlugin: null
+                                        };
+                                        Object.setPrototypeOf(tempMime, MimeType.prototype);
+                                        tempPlugin[0] = tempPlugin[tempMime.type] = tempMime;
+                                        Object.setPrototypeOf(tempPlugin, Plugin.prototype);
+                                        tempPlugins.push(tempPlugin);
+                                    });
+                                }
+                                var resultPlugins = {
+                                    length: tempPlugins.length,
+                                    item: function(index) { return this[index] || null; },
+                                    namedItem: function(name) { return this[name] || null; },
+                                    refresh: function() {}
+                                };
+                                tempPlugins = shuffle(tempPlugins);
+                                tempPlugins.forEach(function(plugin, i) {
+                                    resultPlugins[i] = resultPlugins[plugin.name] = plugin;
+                                });
+                                Object.setPrototypeOf(resultPlugins, PluginArray.prototype);
+                                Object.defineProperty(window.navigator, 'plugins', {
+                                    get: function() {
+                                        return resultPlugins;
+                                    },
+                                    enumerable: true,
+                                    configurable: true
+                                });
+                            </script>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Book Workspace | Writing Interface</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 h-screen overflow-hidden">
+<!-- Top Navigation Bar -->
+<header class="h-14 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 bg-white dark:bg-background-dark/50 backdrop-blur-md z-30 relative">
+<div class="flex items-center gap-4 w-1/3">
+<span class="material-icons text-primary">auto_stories</span>
+<div class="flex flex-col">
+<input class="bg-transparent border-none focus:ring-0 font-semibold text-sm w-48 p-0" type="text" value="The Midnight Protocol"/>
+<span class="text-[10px] text-slate-500 flex items-center gap-1">
+<span class="material-icons text-[12px]">cloud_done</span> Saved to cloud
+                </span>
+</div>
+</div>
+<div class="flex flex-col items-center w-1/3 px-8">
+<div class="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+<div class="bg-primary h-full w-[64%]"></div>
+</div>
+<span class="text-[10px] mt-1 uppercase tracking-widest text-slate-400 font-medium">Progress: 64% (24,300 / 38,000 words)</span>
+</div>
+<div class="flex items-center justify-end gap-3 w-1/3">
+<button class="px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors flex items-center gap-2">
+<span class="material-icons text-sm">file_download</span> Export
+            </button>
+<button class="px-4 py-1.5 text-xs font-semibold bg-primary text-white hover:bg-primary/90 rounded-lg transition-colors flex items-center gap-2 shadow-lg shadow-primary/20">
+<span class="material-icons text-sm">publish</span> Publish
+            </button>
+<div class="h-8 w-8 rounded-full overflow-hidden ml-2 border-2 border-primary/20">
+<img alt="User" data-alt="Author profile portrait" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAIS-EjeiZyX9ejeCUZnmND4HT0xhC5XnumqsDGlSoKSLjr_i9dkfQUiDTcHmE1SnbrtnM4O4yH4lm93hfJp1dH-Ha8ECOc4Gao-52imYc92tEpsA8g0i-7m0QU6SqybRnQ61XddfQqW1TMmnsQgZO475Cf3jK547Dx7kJZXgu_GMU8B-AoaXcGhrv5h57Ii55sPvqTs0-N8LHQv2uqGJbiSEWBZDDiYWd0aXeJ9j2pbm3h_e5DVZsLxat9n1RsmL9-VTg7KGTF9w"/>
+</div>
+</div>
+</header>
+<main class="flex h-[calc(100vh-3.5rem)] overflow-hidden">
+<!-- Left Sidebar: Book Structure -->
+<aside class="w-64 border-r border-slate-200 dark:border-slate-800 flex flex-col bg-slate-50 dark:bg-background-dark/30">
+<div class="p-4 flex items-center justify-between">
+<h3 class="text-xs font-bold uppercase tracking-wider text-slate-500">Manuscript</h3>
+<button class="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 rounded">
+<span class="material-icons text-sm">add</span>
+</button>
+</div>
+<div class="flex-1 overflow-y-auto px-2 pb-4 space-y-1">
+<!-- Chapter 1 -->
+<div class="group">
+<div class="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 cursor-pointer group">
+<span class="material-icons text-slate-400 text-xs cursor-grab">drag_indicator</span>
+<span class="material-icons text-xs text-primary">folder</span>
+<span class="text-xs font-semibold truncate flex-1">Chapter 1: The Breach</span>
+<span class="material-icons text-[14px] text-green-500">check_circle</span>
+</div>
+<div class="ml-6 space-y-1 mt-1 border-l-2 border-slate-200 dark:border-slate-800">
+<div class="flex items-center gap-2 p-2 py-1.5 rounded-lg bg-primary/10 text-primary border-l-2 border-primary -ml-[2px] cursor-pointer">
+<span class="text-xs truncate">1.1 Introduction</span>
+</div>
+<div class="flex items-center gap-2 p-2 py-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 cursor-pointer text-slate-500">
+<span class="text-xs truncate">1.2 The Encounter</span>
+</div>
+</div>
+</div>
+<!-- Chapter 2 -->
+<div class="group mt-2">
+<div class="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 cursor-pointer">
+<span class="material-icons text-slate-400 text-xs cursor-grab">drag_indicator</span>
+<span class="material-icons text-xs text-slate-400">folder_open</span>
+<span class="text-xs font-semibold truncate flex-1">Chapter 2: Echoes</span>
+</div>
+<div class="ml-6 space-y-1 mt-1 border-l-2 border-slate-200 dark:border-slate-800">
+<div class="flex items-center gap-2 p-2 py-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 cursor-pointer text-slate-500">
+<span class="text-xs truncate">2.1 Fragments</span>
+<span class="material-icons text-[14px] text-amber-500">edit</span>
+</div>
+</div>
+</div>
+</div>
+<div class="p-4 border-t border-slate-200 dark:border-slate-800">
+<div class="bg-primary/5 rounded-lg p-3">
+<div class="flex items-center justify-between mb-2">
+<span class="text-[10px] font-bold text-primary uppercase">Daily Goal</span>
+<span class="text-[10px] font-bold text-slate-400">850 / 1000</span>
+</div>
+<div class="w-full h-1 bg-slate-200 dark:bg-slate-700 rounded-full">
+<div class="bg-primary h-full w-[85%] rounded-full"></div>
+</div>
+</div>
+</div>
+</aside>
+<!-- Central Editor Area -->
+<section class="flex-1 flex flex-col bg-white dark:bg-slate-900/50 shadow-inner">
+<!-- Toolbar -->
+<div class="h-12 border-b border-slate-200 dark:border-slate-800 flex items-center justify-center px-4 gap-4 sticky top-0 bg-white/80 dark:bg-background-dark/80 backdrop-blur-sm z-20">
+<div class="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5">
+<button class="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-300">
+<span class="material-icons text-sm">format_bold</span>
+</button>
+<button class="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-300">
+<span class="material-icons text-sm">format_italic</span>
+</button>
+<button class="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-300">
+<span class="material-icons text-sm">format_underlined</span>
+</button>
+</div>
+<div class="w-px h-6 bg-slate-200 dark:bg-slate-800"></div>
+<div class="flex items-center gap-1">
+<button class="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-600 dark:text-slate-300 flex items-center gap-1 text-[11px] font-medium">
+<span class="material-icons text-sm">format_quote</span> Citation
+                    </button>
+<button class="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-600 dark:text-slate-300 flex items-center gap-1 text-[11px] font-medium">
+<span class="material-icons text-sm">add_comment</span> Comment
+                    </button>
+</div>
+<div class="w-px h-6 bg-slate-200 dark:bg-slate-800"></div>
+<div class="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5">
+<button class="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-300">
+<span class="material-icons text-sm">format_align_left</span>
+</button>
+<button class="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-300">
+<span class="material-icons text-sm">format_align_center</span>
+</button>
+</div>
+</div>
+<!-- Editor Content -->
+<div class="flex-1 overflow-y-auto custom-scrollbar">
+<div class="max-w-2xl mx-auto py-16 px-8 min-h-full">
+<h1 class="text-3xl font-bold mb-8 text-slate-800 dark:text-slate-100">1.1 Introduction</h1>
+<div class="prose prose-slate dark:prose-invert max-w-none text-lg leading-relaxed text-slate-700 dark:text-slate-300 space-y-6">
+<p>The rain didn't just fall; it hammered against the reinforced glass of the Neo-Saito spire, a rhythmic percussion that underscored the tension in the room. Elias stood by the window, his reflection ghostly against the neon-streaked cityscape below. He checked his neural-link one last time. The connection was stable, but the encryption was bleeding. </p>
+<p class="relative group">
+                            "You shouldn't have come back," a voice rasped from the shadows. It was Sarah. She looked tired, the cybernetic augmentations around her left eye flickering with a faint amber light. The data drive she held was small, but its weight in the political landscape of 2084 was immeasurable. 
+                            <span class="absolute -right-24 top-0 w-20 p-2 bg-amber-100 dark:bg-amber-900/30 border-l-2 border-amber-500 rounded text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">
+                                Suggestion: Enhance the mood here.
+                            </span>
+</p>
+<p>Elias didn't turn around. "We don't have the luxury of caution anymore. If they find the breach before we upload the sequence, the entire grid goes dark. Not just for us, but for the millions living in the Lower Ward." </p>
+<div class="w-full py-4 flex justify-center">
+<div class="w-2 h-2 rounded-full bg-slate-200 dark:bg-slate-800 mx-1"></div>
+<div class="w-2 h-2 rounded-full bg-slate-200 dark:bg-slate-800 mx-1"></div>
+<div class="w-2 h-2 rounded-full bg-slate-200 dark:bg-slate-800 mx-1"></div>
+</div>
+<p>The cursor blinked at the end of the line, waiting for the next spark of inspiration. The silence of the spire was only broken by the soft hum of the environmental systems and the distant, muffled roar of the city that never slept.</p>
+</div>
+</div>
+</div>
+<!-- Editor Footer -->
+<div class="h-10 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 bg-slate-50 dark:bg-background-dark/30">
+<div class="flex items-center gap-4 text-[10px] font-medium text-slate-500">
+<span>1,245 Words</span>
+<span>8,432 Characters</span>
+<span class="flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-green-500"></span>
+                        Reading Time: 5 min
+                    </span>
+</div>
+<div class="flex items-center gap-3">
+<div class="flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded bg-primary/10 text-primary">
+<span class="material-icons text-[12px]">psychology</span> Tone: Narrative / Noir
+                    </div>
+<div class="flex items-center gap-1 text-[10px] font-medium text-slate-500">
+<span class="material-icons text-[12px]">zoom_in</span> 100%
+                    </div>
+</div>
+</div>
+</section>
+<!-- Right Panel: AI Panel -->
+<aside class="w-80 border-l border-slate-200 dark:border-slate-800 flex flex-col bg-slate-50 dark:bg-background-dark/30">
+<!-- AI Tabs -->
+<div class="flex border-b border-slate-200 dark:border-slate-800">
+<button class="flex-1 py-3 text-[11px] font-bold uppercase tracking-tight text-primary border-b-2 border-primary">Write</button>
+<button class="flex-1 py-3 text-[11px] font-bold uppercase tracking-tight text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">Research</button>
+<button class="flex-1 py-3 text-[11px] font-bold uppercase tracking-tight text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">Improve</button>
+</div>
+<!-- AI Content: Write Tab -->
+<div class="flex-1 flex flex-col overflow-hidden">
+<div class="p-4 flex-1 overflow-y-auto space-y-4">
+<div class="flex gap-2">
+<div class="w-6 h-6 rounded-full bg-primary flex items-center justify-center shrink-0">
+<span class="material-icons text-white text-[14px]">smart_toy</span>
+</div>
+<div class="bg-white dark:bg-slate-800 p-3 rounded-xl rounded-tl-none shadow-sm text-xs leading-relaxed border border-slate-200 dark:border-slate-700">
+                            I've analyzed your scene. Would you like to expand on Sarah's motivations or describe the Neo-Saito skyline in more detail to build atmosphere?
+                        </div>
+</div>
+<div class="space-y-2">
+<h4 class="text-[10px] font-bold text-slate-400 uppercase">Suggestions</h4>
+<div class="bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-primary transition-colors cursor-pointer text-xs">
+<p class="font-medium mb-1">Add Sensory Detail</p>
+<p class="text-slate-500 leading-tight">Describe the smell of ozone and wet pavement after the rain.</p>
+</div>
+<div class="bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-primary transition-colors cursor-pointer text-xs">
+<p class="font-medium mb-1">Character Internal Monologue</p>
+<p class="text-slate-500 leading-tight">Explore Elias's fear of his neural-link encryption failing.</p>
+</div>
+</div>
+<div class="bg-primary/5 rounded-xl border border-primary/20 p-3">
+<h4 class="text-[10px] font-bold text-primary uppercase mb-2">Generate Dialogue</h4>
+<div class="flex flex-col gap-2">
+<div class="text-[11px] text-slate-600 dark:text-slate-400 italic">"Sarah, the data doesn't lie. We're running out of..."</div>
+<button class="w-full py-2 bg-primary/20 text-primary text-xs font-semibold rounded-lg hover:bg-primary/30">Complete sentence</button>
+</div>
+</div>
+</div>
+<!-- AI Input -->
+<div class="p-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-background-dark/50">
+<div class="relative">
+<textarea class="w-full bg-slate-100 dark:bg-slate-800 border-none rounded-xl text-xs p-3 pr-10 focus:ring-1 focus:ring-primary min-h-[80px] resize-none" placeholder="Ask AI to write, brainstorm or research..."></textarea>
+<button class="absolute bottom-2 right-2 p-1.5 bg-primary text-white rounded-lg hover:bg-primary/90">
+<span class="material-icons text-sm">send</span>
+</button>
+</div>
+<div class="mt-2 flex items-center justify-between text-[10px] text-slate-500">
+<span class="flex items-center gap-1">
+<span class="material-icons text-[12px] text-primary">bolt</span> GPT-4 Omni Active
+                        </span>
+<span>0/500 tokens</span>
+</div>
+</div>
+</div>
+</aside>
+</main>
+<!-- Global Floating Action Button for Zen Mode -->
+<button class="fixed bottom-6 left-6 w-10 h-10 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full shadow-xl flex items-center justify-center text-slate-500 hover:text-primary transition-colors z-50">
+<span class="material-icons">fullscreen</span>
+</button>
+</body></html>

@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head><script>
+                                Object.defineProperty(navigator, 'userAgent', {get: function () { return 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.2 Safari/605.1.16' }, configurable: true });
+                                
+                                function shuffle(array) {
+                                    var currentIndex = array.length, tempValue, randomIndex;
+                                    while (0 !== currentIndex) {
+                                        randomIndex = Math.floor(Math.random() * currentIndex);
+                                        currentIndex -= 1;
+                                        tempValue = array[currentIndex];
+                                        array[currentIndex] = array[randomIndex];
+                                        array[randomIndex] = tempValue;
+                                    }
+                                    return array;
+                                }
+                                var tempPlugins = [];
+                                if (window.navigator.plugins) {
+                                    if (window.navigator.plugins.length) {
+                                        var navigatorPluginsLength = window.navigator.plugins.length,
+                                        navigatorPlugins = window.navigator.plugins;
+                                        Object.setPrototypeOf(navigatorPlugins, Array.prototype);
+                                        navigatorPlugins.length = navigatorPluginsLength;
+                                        navigatorPlugins.forEach(function(plugin) {
+                                            var tempPlugin = { 
+                                                name: plugin.name,
+                                                description: plugin.description,
+                                                filename: plugin.filename,
+                                               version: plugin.version,
+                                                 length: plugin.length,
+                                                  item: function(index) { return this[index] || null; },
+                                                  namedItem: function(name) { return this[name] || null; }
+                                             };
+                                            var tempPluginsLength = plugin.length;
+                                             Object.setPrototypeOf(plugin, Array.prototype);
+                                             plugin.length = tempPluginsLength;
+                                             plugin.forEach(function(mime, i) {
+                                                 tempPlugin[i] = tempPlugin[mime.type] = mime;
+                                              });
+                                            Object.setPrototypeOf(tempPlugin, Plugin.prototype);
+                                            tempPlugins.push(tempPlugin);
+                                        });
+                                     }
+                                }
+                                var injectedPlugins = [{'name': 'SpecialPlayer', 'filename': 'specialplayer', 'description': 'Special format player', '0': {'description': '', 'suffixes': '', 'type': 'application/special'}}, {'name': 'AutoUpdaterTO', 'filename': 'autoupdaterto', 'description': 'Autou checking plugin', '0': {'description': '', 'type': 'application/auto-updater-to', 'suffixes': ''}}];
+                                if (injectedPlugins) {
+                                    injectedPlugins.forEach(function(plugin, v) {
+                                        var tempPlugin = {
+                                            name: plugin.name,
+                                            description: plugin.description,
+                                            filename: plugin.filename,
+                                            version: undefined,
+                                            length: 1,
+                                            item: function(index) { return this[index] || null; },
+                                            namedItem: function(name) { return this[name] || null; }
+                                        };
+                                        var tempMime = {
+                                            description: plugin[0].description,
+                                            suffixes: plugin[0].suffixes,
+                                            type: plugin[0].type,
+                                            enabledPlugin: null
+                                        };
+                                        Object.setPrototypeOf(tempMime, MimeType.prototype);
+                                        tempPlugin[0] = tempPlugin[tempMime.type] = tempMime;
+                                        Object.setPrototypeOf(tempPlugin, Plugin.prototype);
+                                        tempPlugins.push(tempPlugin);
+                                    });
+                                }
+                                var resultPlugins = {
+                                    length: tempPlugins.length,
+                                    item: function(index) { return this[index] || null; },
+                                    namedItem: function(name) { return this[name] || null; },
+                                    refresh: function() {}
+                                };
+                                tempPlugins = shuffle(tempPlugins);
+                                tempPlugins.forEach(function(plugin, i) {
+                                    resultPlugins[i] = resultPlugins[plugin.name] = plugin;
+                                });
+                                Object.setPrototypeOf(resultPlugins, PluginArray.prototype);
+                                Object.defineProperty(window.navigator, 'plugins', {
+                                    get: function() {
+                                        return resultPlugins;
+                                    },
+                                    enumerable: true,
+                                    configurable: true
+                                });
+                            </script>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Book Formatting &amp; Live Preview | BookWrite AI</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=EB+Garamond:ital,wght@0,400..800;1,400..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Inter"],
+                        "serif": ["EB Garamond", "serif"]
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .preview-page {
+            aspect-ratio: 6/9;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #283039;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 antialiased overflow-hidden">
+<div class="relative flex h-screen w-full flex-col">
+<!-- Top Navigation -->
+<header class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-6 py-3 bg-white dark:bg-background-dark z-20">
+<div class="flex items-center gap-3">
+<div class="size-8 bg-primary rounded-lg flex items-center justify-center text-white">
+<span class="material-symbols-outlined">auto_stories</span>
+</div>
+<h2 class="text-lg font-bold leading-tight tracking-tight">BookWrite AI</h2>
+</div>
+<nav class="flex items-center gap-8">
+<a class="text-sm font-medium hover:text-primary transition-colors" href="#">Write</a>
+<a class="text-sm font-medium hover:text-primary transition-colors" href="#">Chapters</a>
+<a class="text-sm font-medium hover:text-primary transition-colors" href="#">Characters</a>
+<a class="text-sm font-medium text-primary" href="#">Formatting</a>
+</nav>
+<div class="flex items-center gap-3">
+<div class="flex items-center gap-1 bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-semibold mr-2">
+<span class="material-symbols-outlined text-sm">bolt</span>
+                    AI Optimized
+                </div>
+<button class="p-2 text-slate-500 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<button class="p-2 text-slate-500 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<div class="h-8 w-8 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+<img alt="User Profile Avatar" data-alt="User profile photo avatar" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAFjWDWhSse59gfzMWVcQxjdQeNJi3Lh-DMhSijbcJHD5peAsqIfGom7zUTrzAVpvBgiPOy4EWTubIO_d4fwzFXjrtS3ylbEyBIAef6Rtve29Wyw4CGRlN7tFYIW76fZb1xlOuikTQ58SrKio-5c_gtnw5nPTyhiL89hLgPZAwIpMKmW2qTV4rdOmIAz4w1qQ8l-Wi76YsjeepJW8TJFil13A2HnvgDxFmA0ZeaZqRMzjz_yXUqnvfruRj4bEZbyozNQrhinwjsLg"/>
+</div>
+</div>
+</header>
+<main class="flex flex-1 overflow-hidden">
+<!-- Left Panel: Format Settings -->
+<aside class="w-[380px] border-r border-slate-200 dark:border-slate-800 flex flex-col bg-white dark:bg-background-dark overflow-y-auto custom-scrollbar">
+<div class="p-6 space-y-8">
+<div>
+<div class="flex items-center justify-between mb-2">
+<h1 class="text-lg font-bold">Format Settings</h1>
+<span class="text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">v2.4 Draft</span>
+</div>
+<p class="text-sm text-slate-500">Configure your manuscript for digital or print distribution.</p>
+</div>
+<!-- Typography Section -->
+<section class="space-y-4">
+<div class="flex items-center gap-2 text-primary font-semibold text-sm uppercase tracking-widest">
+<span class="material-symbols-outlined text-sm">text_fields</span>
+                            Typography
+                        </div>
+<div class="grid grid-cols-2 gap-2">
+<button class="flex flex-col items-center justify-center p-3 rounded-xl border-2 border-primary bg-primary/5 text-primary">
+<span class="text-xl font-serif">Aa</span>
+<span class="text-xs font-medium mt-1">Serif</span>
+</button>
+<button class="flex flex-col items-center justify-center p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-slate-300 transition-colors">
+<span class="text-xl font-display">Aa</span>
+<span class="text-xs font-medium mt-1">Sans</span>
+</button>
+</div>
+<div class="space-y-4 pt-2">
+<div class="space-y-2">
+<div class="flex justify-between items-center">
+<label class="text-sm font-medium">Font Family</label>
+<span class="text-xs text-slate-400">Garamond Pro</span>
+</div>
+<select class="w-full bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:ring-primary">
+<option>EB Garamond</option>
+<option>Baskerville</option>
+<option>Caslon</option>
+<option>Inter</option>
+</select>
+</div>
+<div class="space-y-3">
+<div class="flex justify-between items-center">
+<label class="text-sm font-medium">Font Size</label>
+<span class="text-xs font-mono">11pt</span>
+</div>
+<input class="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-primary" max="18" min="8" type="range" value="11"/>
+</div>
+<div class="space-y-3">
+<div class="flex justify-between items-center">
+<label class="text-sm font-medium">Line Spacing</label>
+<span class="text-xs font-mono">1.4</span>
+</div>
+<input class="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-primary" max="2" min="1" step="0.1" type="range" value="1.4"/>
+</div>
+</div>
+</section>
+<!-- Page Layout Section -->
+<section class="space-y-4">
+<div class="flex items-center gap-2 text-slate-400 font-semibold text-sm uppercase tracking-widest">
+<span class="material-symbols-outlined text-sm">straighten</span>
+                            Page Layout
+                        </div>
+<div class="space-y-4">
+<div class="space-y-2">
+<label class="text-sm font-medium">Trim Size</label>
+<select class="w-full bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:ring-primary">
+<option>Digest (5.5" x 8.5")</option>
+<option selected="">Trade Paperback (6" x 9")</option>
+<option>US Letter (8.5" x 11")</option>
+<option>A5 (148 x 210 mm)</option>
+</select>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="space-y-2">
+<label class="text-xs text-slate-500 font-medium">Inside Margin</label>
+<input class="w-full bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-lg text-sm text-center" type="text" value="0.75 in"/>
+</div>
+<div class="space-y-2">
+<label class="text-xs text-slate-500 font-medium">Outside Margin</label>
+<input class="w-full bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-lg text-sm text-center" type="text" value="0.50 in"/>
+</div>
+</div>
+</div>
+</section>
+<!-- Chapter Styles -->
+<section class="space-y-4">
+<div class="flex items-center gap-2 text-slate-400 font-semibold text-sm uppercase tracking-widest">
+<span class="material-symbols-outlined text-sm">format_list_bulleted</span>
+                            Chapter Styles
+                        </div>
+<div class="space-y-3">
+<label class="flex items-center justify-between cursor-pointer">
+<span class="text-sm">Drop Caps</span>
+<input checked="" class="rounded border-slate-300 text-primary focus:ring-primary" type="checkbox"/>
+</label>
+<label class="flex items-center justify-between cursor-pointer">
+<span class="text-sm">Chapter Ornaments</span>
+<input class="rounded border-slate-300 text-primary focus:ring-primary" type="checkbox"/>
+</label>
+</div>
+</section>
+</div>
+<!-- Export Bottom Bar -->
+<div class="mt-auto p-6 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+<div class="flex flex-col gap-3">
+<div class="flex items-center gap-2 mb-1">
+<span class="text-xs font-semibold text-slate-500 uppercase">Export Format</span>
+</div>
+<div class="grid grid-cols-3 gap-2">
+<button class="flex flex-col items-center p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-primary transition-all">
+<span class="material-symbols-outlined text-red-500">picture_as_pdf</span>
+<span class="text-[10px] mt-1 font-bold">PDF</span>
+</button>
+<button class="flex flex-col items-center p-2 rounded-lg bg-white dark:bg-slate-800 border border-primary ring-1 ring-primary">
+<span class="material-symbols-outlined text-primary">smartphone</span>
+<span class="text-[10px] mt-1 font-bold">EPUB</span>
+</button>
+<button class="flex flex-col items-center p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-primary transition-all">
+<span class="material-symbols-outlined text-blue-400">description</span>
+<span class="text-[10px] mt-1 font-bold">DOCX</span>
+</button>
+</div>
+<button class="w-full bg-primary text-white py-3 rounded-lg font-bold text-sm shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all flex items-center justify-center gap-2 mt-2">
+<span class="material-symbols-outlined text-sm">download</span>
+                            Generate Export
+                        </button>
+</div>
+</div>
+</aside>
+<!-- Right Panel: Live Preview -->
+<section class="flex-1 bg-slate-100 dark:bg-background-dark/50 relative flex flex-col items-center overflow-hidden">
+<!-- Preview Toolbar -->
+<div class="w-full bg-white dark:bg-background-dark border-b border-slate-200 dark:border-slate-800 px-6 py-2 flex items-center justify-between z-10">
+<div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 rounded-lg p-1">
+<button class="px-4 py-1.5 text-xs font-bold rounded-md bg-white dark:bg-slate-800 shadow-sm">Spread View</button>
+<button class="px-4 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 transition-colors">Single Page</button>
+<button class="px-4 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 transition-colors">E-reader</button>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-slate-400 text-lg">zoom_out</span>
+<input class="w-32 h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-primary" type="range"/>
+<span class="material-symbols-outlined text-slate-400 text-lg">zoom_in</span>
+<span class="text-xs font-medium text-slate-500 ml-1">75%</span>
+</div>
+<div class="h-6 w-[1px] bg-slate-200 dark:bg-slate-800"></div>
+<button class="flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg">grid_guides</span>
+                            Safe Zones
+                        </button>
+</div>
+</div>
+<!-- Book Canvas -->
+<div class="flex-1 w-full overflow-auto flex items-start justify-center p-12 custom-scrollbar">
+<div class="flex gap-4 items-start max-w-full">
+<!-- Left Page -->
+<div class="preview-page bg-white w-[420px] p-12 relative flex flex-col font-serif">
+<div class="text-[10px] text-center text-slate-400 uppercase tracking-widest mb-16">The Last Constellation</div>
+<div class="flex-1 text-[#2d2d2d] leading-[1.6] text-[15px] space-y-4 text-justify">
+<p>The starship hummed with a low, rhythmic vibration that pulsed through the soles of Elara’s boots. It was a familiar comfort, the heartbeat of a vessel that had been her only home for three decades.</p>
+<p>Outside the reinforced obsidian glass, the void stretched on forever, punctuated only by the dying embers of the Andromeda cluster. They were the last of their kind—keepers of the celestial fire, drifting through a galaxy that had forgotten the warmth of a rising sun.</p>
+<p>Elara adjusted the settings on the navigation console. Her fingers moved with practiced grace, a dance she had performed a thousand times before. But tonight felt different. The sensors were picking up a faint signal from the gravitational well of Sector 7G.</p>
+<p>"Captain?" The artificial voice of the ship's AI, Seraphina, crackled through the comms. "I'm detecting a localized distortion in the fabric of spacetime. It shouldn't be possible."</p>
+<p>Elara leaned in closer. "Possible or not, it’s there. Bring us about, Seraphina. Let's see what’s left of the universe."</p>
+</div>
+<div class="mt-16 text-center text-[11px] font-display text-slate-400">142</div>
+<!-- Page shadow/depth effect -->
+<div class="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-slate-200/50 to-transparent"></div>
+</div>
+<!-- Right Page (Active/Chapter Start) -->
+<div class="preview-page bg-white w-[420px] p-12 relative flex flex-col font-serif">
+<div class="text-[10px] text-center text-slate-400 uppercase tracking-widest mb-24">Chapter Twelve</div>
+<div class="flex-1 text-[#2d2d2d]">
+<h3 class="text-2xl font-bold mb-8 text-center italic">The Gutter of the Void</h3>
+<div class="leading-[1.6] text-[15px] space-y-4 text-justify">
+<p><span class="float-left text-6xl font-bold leading-[0.8] mr-3 mt-1 text-primary">I</span>t was a place where light went to die. Not in the violent surge of a black hole, but in the slow, agonizing fade of a candle in a drafty room. The Nebula of Sighs was aptly named by the scouts of the Old Republic.</p>
+<p>Elara watched the displays as the ship entered the thick, violet gas. Visibility dropped to near zero. The Seraphina’s hull groaned under the sudden shift in pressure.</p>
+<p>“Shields at eighty percent,” the AI reported. “Thermal radiation is within acceptable limits, but I am losing lock on the beacon.”</p>
+<p>“Keep looking,” Elara whispered. “It’s there. It has to be.” She knew that if they missed this window, they would never find their way back to the core. The path was closing, and they were running out of time.</p>
+</div>
+</div>
+<div class="mt-16 text-center text-[11px] font-display text-slate-400">143</div>
+<!-- Page shadow/depth effect -->
+<div class="absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-slate-200/50 to-transparent"></div>
+</div>
+</div>
+</div>
+<!-- Navigation Controls -->
+<div class="absolute bottom-8 flex items-center gap-6 z-10">
+<button class="size-10 rounded-full bg-white dark:bg-slate-800 shadow-xl border border-slate-200 dark:border-slate-700 flex items-center justify-center hover:text-primary transition-all">
+<span class="material-symbols-outlined">chevron_left</span>
+</button>
+<div class="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md px-6 py-2 rounded-full shadow-xl border border-slate-200 dark:border-slate-700 flex items-center gap-4">
+<span class="text-xs font-bold text-slate-500">Page 142 of 310</span>
+<div class="h-1 w-24 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[45%]"></div>
+</div>
+</div>
+<button class="size-10 rounded-full bg-white dark:bg-slate-800 shadow-xl border border-slate-200 dark:border-slate-700 flex items-center justify-center hover:text-primary transition-all">
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+</div>
+<!-- Floating AI Tip -->
+<div class="absolute bottom-8 right-8 w-64 bg-slate-900/95 text-white p-4 rounded-xl shadow-2xl border border-primary/30 backdrop-blur-sm z-20">
+<div class="flex items-start gap-3">
+<div class="p-1.5 bg-primary/20 rounded-lg">
+<span class="material-symbols-outlined text-primary text-lg">lightbulb</span>
+</div>
+<div>
+<p class="text-xs font-bold text-primary mb-1">AI Recommendation</p>
+<p class="text-[11px] leading-relaxed text-slate-300">For Sci-Fi novels, a slightly tighter line height (1.3) and a modern serif like Caslon often improves readability.</p>
+<button class="mt-2 text-[10px] font-bold text-primary uppercase tracking-wider hover:underline">Apply Now</button>
+</div>
+</div>
+<button class="absolute -top-2 -right-2 size-5 bg-slate-800 rounded-full flex items-center justify-center border border-slate-700">
+<span class="material-symbols-outlined text-[10px]">close</span>
+</button>
+</div>
+</section>
+</main>
+</div>
+</body></html>

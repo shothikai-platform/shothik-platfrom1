@@ -1,0 +1,73 @@
+modules = ["nodejs-20", "python-3.12", "web", "bash"]
+[agent]
+expertMode = true
+integrations = ["github:1.0.0", "javascript_gemini_ai_integrations:2.0.0"]
+
+[nix]
+channel = "stable-25_05"
+packages = ["texliveSmall", "pandoc"]
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Next.js Dev Server"
+
+[[workflows.workflow]]
+name = "Next.js Dev Server"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev -- -p 5000 -H 0.0.0.0"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[ports]]
+localPort = 3210
+externalPort = 3002
+
+[[ports]]
+localPort = 3211
+externalPort = 3003
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[[ports]]
+localPort = 6790
+externalPort = 3000
+exposeLocalhost = true
+
+[[ports]]
+localPort = 6791
+externalPort = 3001
+exposeLocalhost = true
+
+[deployment]
+deploymentTarget = "autoscale"
+run = ["npm", "run", "start"]
+build = ["npm", "run", "build"]
+
+[userenv]
+
+[userenv.shared]
+NEXT_PUBLIC_WRITING_STUDIO_API_URL = "self"
+NEXT_PUBLIC_CONVEX_URL = "https://basic-toucan-81.convex.cloud"
+NEXT_PUBLIC_ADMIN_SECRET = "shothik-admin-2026"
+CONVEX_JWKS = "{\"keys\":[{\"kty\":\"RSA\",\"n\":\"1sx2Dz64sIk5ip5rU5_Ft4IuYqziSooeIsvC2iANhe3bwTq76itJWKK41zIGKf9uKqgWJFgNPrvcwuRBvb79UbWpPvZ2t0Hf7O8a0GZTlL4s30B7nQXA8wJOr8yQLhtM4ArYDMqzeij-4hD7Xgjlj-cXcwofXKBprMw-Ixcgawb_Jty_yDxZqFf48_EYIoPBBlSr8wWRELkrvpQYPCQ9GiBGQs-34O34uO3Wj9k_homElc_XEWYA7ijCAjZOoL95h7U2km3E684IWUimkXF8sMjP6NB87W9n80Flu1Ya7iyGm1OAx-R-nSKsOYQPtwJZe9U31UKoTKPUZpXjMbgpEQ\",\"e\":\"AQAB\",\"kid\":\"shothik-convex-1\",\"use\":\"sig\",\"alg\":\"RS256\"}]}"
+
+[userenv.development]
+NEXT_PUBLIC_API_URL = "https://api-qa.shothik.ai"
+
+[userenv.production]
+NEXT_PUBLIC_API_URL = "https://api.shothik.ai"

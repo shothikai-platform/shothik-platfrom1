@@ -1,0 +1,23 @@
+# AI Detector ONNX Service Requirements
+
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+pydantic==2.5.0
+
+# ONNX Runtime
+onnxruntime==1.16.3
+onnx==1.15.0
+
+# Transformers for tokenization
+transformers==4.36.0
+tokenizers==0.15.0
+
+# Numerical
+numpy==1.24.3
+
+# HTTP client for fallback
+httpx==0.26.0
+
+# Model conversion (optional, for development)
+# torch==2.1.0
+# onnxruntime-tools==1.7.0

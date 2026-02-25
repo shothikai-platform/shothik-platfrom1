@@ -1,0 +1,113 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getMetricsSnapshot } from "@/lib/runtime-metrics";
+import { getCacheStats } from "@/lib/result-cache";
+import { getAllCircuitStatuses } from "@/lib/ai-gateway";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://prod-api.shothik.ai";
+const CONVEX_URL = process.env.NEXT_PUBLIC_CONVEX_URL || "";
+
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const deep = searchParams.get("deep") === "true";
+  const metrics = searchParams.get("metrics") === "true";
+
+  if (metrics) {
+    const isDevEnv = process.env.NODE_ENV === "development";
+    const adminKey = request.headers.get("x-admin-key");
+    const validAdminKey = process.env.METRICS_ADMIN_KEY;
+
+    if (!isDevEnv && (!validAdminKey || adminKey !== validAdminKey)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    return NextResponse.json({
+      metrics: getMetricsSnapshot(),
+      caches: getCacheStats(),
+      circuits: getAllCircuitStatuses(),
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  if (!deep) {
+    return NextResponse.json({
+      status: "ok",
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+    });
+  }
+
+  const checks: Record<string, { status: string; latencyMs?: number; error?: string }> = {};
+
+  const backendCheck = async () => {
+    const start = Date.now();
+    try {
+      const res = await fetch(`${API_URL}/api/health`, {
+        signal: AbortSignal.timeout(5000),
+      });
+      checks.backend = {
+        status: res.ok ? "healthy" : "degraded",
+        latencyMs: Date.now() - start,
+      };
+    } catch (err) {
+      checks.backend = {
+        status: "unhealthy",
+        latencyMs: Date.now() - start,
+        error: err instanceof Error ? err.message : "Connection failed",
+      };
+    }
+  };
+
+  const convexCheck = async () => {
+    if (!CONVEX_URL) {
+      checks.convex = { status: "not_configured" };
+      return;
+    }
+    const start = Date.now();
+    try {
+      const siteUrl = CONVEX_URL.replace(".convex.cloud", ".convex.site");
+      const res = await fetch(siteUrl, {
+        signal: AbortSignal.timeout(5000),
+      });
+      checks.convex = {
+        status: res.status < 500 ? "healthy" : "degraded",
+        latencyMs: Date.now() - start,
+      };
+    } catch (err) {
+      checks.convex = {
+        status: "unhealthy",
+        latencyMs: Date.now() - start,
+        error: err instanceof Error ? err.message : "Connection failed",
+      };
+    }
+  };
+
+  const envCheck = () => {
+    const required = ["JWT_PRIVATE_KEY", "NEXT_PUBLIC_CONVEX_URL"];
+    const missing = required.filter((key) => !process.env[key]);
+    checks.environment = {
+      status: missing.length === 0 ? "healthy" : "degraded",
+      ...(missing.length > 0 && { error: `Missing: ${missing.join(", ")}` }),
+    };
+  };
+
+  await Promise.all([backendCheck(), convexCheck()]);
+  envCheck();
+
+  const overallStatus = Object.values(checks).every(
+    (c) => c.status === "healthy" || c.status === "not_configured"
+  )
+    ? "healthy"
+    : Object.values(checks).some((c) => c.status === "unhealthy")
+    ? "unhealthy"
+    : "degraded";
+
+  return NextResponse.json(
+    {
+      status: overallStatus,
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      checks,
+    },
+    { status: overallStatus === "unhealthy" ? 503 : 200 }
+  );
+}
