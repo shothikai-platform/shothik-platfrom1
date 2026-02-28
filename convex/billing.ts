@@ -3,6 +3,41 @@ import { query, mutation, internalMutation } from "./_generated/server";
 import { api } from "./_generated/api";
 
 // ==========================================
+// USER LOOKUP (for Stripe webhooks)
+// ==========================================
+
+// Get user by Stripe customer ID
+export const getUserByStripeCustomerId = query({
+  args: { stripeCustomerId: v.string() },
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_stripe_customer", (q) =>
+        q.eq("stripeCustomerId", args.stripeCustomerId)
+      )
+      .first();
+    
+    return user ? { userId: user._id, email: user.email } : null;
+  },
+});
+
+// Get subscription plan by Stripe price ID
+export const getSubscriptionPlanByPriceId = query({
+  args: { stripePriceId: v.string() },
+  handler: async (ctx, args) => {
+    return ctx.db
+      .query("subscriptionPlans")
+      .filter((q) =>
+        q.or(
+          q.eq(q.field("stripePriceIdMonthly"), args.stripePriceId),
+          q.eq(q.field("stripePriceIdYearly"), args.stripePriceId)
+        )
+      )
+      .first();
+  },
+});
+
+// ==========================================
 // USER CREDITS
 // ==========================================
 

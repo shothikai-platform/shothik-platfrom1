@@ -9,6 +9,7 @@ export default defineSchema({
     name: v.string(),
     email: v.string(),
     avatar: v.optional(v.string()),
+    stripeCustomerId: v.optional(v.string()),
     preferences: v.optional(v.object({
       theme: v.optional(v.string()), // 'light' | 'dark' | 'system'
       fontSize: v.optional(v.number()),
@@ -19,7 +20,8 @@ export default defineSchema({
       expiresAt: v.optional(v.number()),
     })),
   })
-    .index("by_email", ["email"]),
+    .index("by_email", ["email"])
+    .index("by_stripe_customer", ["stripeCustomerId"]),
 
   // Projects table (books, research papers, assignments)
   projects: defineTable({
