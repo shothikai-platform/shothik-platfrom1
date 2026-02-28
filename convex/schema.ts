@@ -597,4 +597,83 @@ export default defineSchema({
     .index("by_type", ["type"])
     .index("by_processed", ["processed"])
     .index("by_created", ["createdAt"]),
+
+  // ==========================================
+  // PARSED PDF DOCUMENTS (OpenDataloader)
+  // ==========================================
+
+  parsedDocuments: defineTable({
+    userId: v.id("users"),
+    originalName: v.string(),
+    metadata: v.object({
+      title: v.string(),
+      author: v.optional(v.string()),
+      pages: v.number(),
+      wordCount: v.number(),
+      parseTime: v.number(),
+    }),
+    markdown: v.string(),
+    structured: v.optional(v.any()), // OpenDataloader JSON output
+    agent: v.string(), // 'research' | 'slide' | 'sheet'
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_and_agent", ["userId", "agent"])
+    .index("by_created", ["createdAt"]),
+
+  // Research notes extracted from PDFs
+  researchNotes: defineTable({
+    userId: v.id("users"),
+    documentId: v.id("parsedDocuments"),
+    title: v.string(),
+    summary: v.string(),
+    keyPoints: v.array(v.string()),
+    citations: v.array(v.string()),
+    sections: v.array(v.object({
+      title: v.string(),
+      content: v.string(),
+    })),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_document", ["documentId"]),
+
+  // Slide outlines from PDFs
+  slideOutlines: defineTable({
+    userId: v.id("users"),
+    documentId: v.id("parsedDocuments"),
+    title: v.string(),
+    totalSlides: v.number(),
+    slides: v.array(v.object({
+      index: v.number(),
+      title: v.string(),
+      bulletPoints: v.array(v.string()),
+      hasImage: v.boolean(),
+    })),
+    status: v.string(), // 'draft' | 'generating' | 'completed'
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_document", ["documentId"]),
+
+  // Sheet data from PDF tables
+  sheetData: defineTable({
+    userId: v.id("users"),
+    documentId: v.id("parsedDocuments"),
+    title: v.string(),
+    tables: v.array(v.object({
+      index: v.number(),
+      name: v.string(),
+      rows: v.number(),
+      columns: v.number(),
+      headers: v.array(v.string()),
+      data: v.array(v.array(v.any())),
+    })),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_document", ["documentId"]),
 });
