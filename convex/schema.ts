@@ -329,4 +329,270 @@ export default defineSchema({
     .index("by_timestamp", ["timestamp"])
     .index("by_type", ["type"])
     .index("by_severity", ["severity"]),
+
+  // ==========================================
+  // ECONOMIC ENGINE TABLES
+  // ==========================================
+
+  // User credits balance
+  userCredits: defineTable({
+    userId: v.id("users"),
+    balance: v.number(), // in tokens/credits
+    lifetimeEarned: v.number(),
+    lifetimeSpent: v.number(),
+    
+    // Tier info
+    tier: v.string(), // 'free' | 'pro' | 'premium'
+    tierExpiresAt: v.optional(v.number()),
+    
+    // Usage limits
+    monthlyLimit: v.number(),
+    monthlyUsed: v.number(),
+    monthlyResetAt: v.number(),
+    
+    // Auto-recharge settings
+    autoRecharge: v.optional(v.object({
+      enabled: v.boolean(),
+      threshold: v.number(), // recharge when balance below this
+      amount: v.number(), // amount to recharge
+      paymentMethodId: v.string(),
+    })),
+    
+    updatedAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_tier", ["tier"]),
+
+  // Credit transactions (mint/burn/purchase)
+  creditTransactions: defineTable({
+    userId: v.id("users"),
+    
+    // Transaction details
+    type: v.union(
+      v.literal("purchase"),    // bought credits
+      v.literal("usage"),       // spent on AI
+      v.literal("refund"),      // refunded
+      v.literal("bonus"),       // promotional
+      v.literal("adjustment")   // admin adjustment
+    ),
+    
+    amount: v.number(), // positive = credit added, negative = credit spent
+    balanceAfter: v.number(),
+    
+    // What was this for?
+    description: v.string(),
+    metadata: v.optional(v.object({
+      tool: v.optional(v.string()), // 'grammar', 'paraphrase', etc.
+      tokens: v.optional(v.number()), // AI tokens used
+      model: v.optional(v.string()), // 'kimi', 'deepseek', etc.
+    })),
+    
+    // Payment info (if purchase)
+    paymentIntentId: v.optional(v.string()),
+    
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_and_type", ["userId", "type"])
+    .index("by_created", ["createdAt"])
+    .index("by_payment_intent", ["paymentIntentId"]),
+
+  // Subscription plans
+  subscriptionPlans: defineTable({
+    id: v.string(),
+    name: v.string(), // 'Free', 'Pro', 'Premium'
+    
+    // Pricing
+    priceMonthly: v.number(), // in cents
+    priceYearly: v.number(), // in cents
+    currency: v.string(), // 'usd', 'eur', etc.
+    
+    // Features
+    features: v.object({
+      monthlyCredits: v.number(),
+      tools: v.array(v.string()), // which tools are included
+      maxProjects: v.number(),
+      maxStorageMB: v.number(),
+      prioritySupport: v.boolean(),
+      apiAccess: v.boolean(),
+      customModels: v.boolean(),
+    }),
+    
+    // Stripe price IDs
+    stripePriceIdMonthly: v.optional(v.string()),
+    stripePriceIdYearly: v.optional(v.string()),
+    
+    isActive: v.boolean(),
+    displayOrder: v.number(),
+  })
+    .index("by_active", ["isActive"])
+    .index("by_display_order", ["displayOrder"]),
+
+  // User subscriptions
+  userSubscriptions: defineTable({
+    userId: v.id("users"),
+    
+    // Current plan
+    planId: v.id("subscriptionPlans"),
+    status: v.union(
+      v.literal("incomplete"),
+      v.literal("incomplete_expired"),
+      v.literal("trialing"),
+      v.literal("active"),
+      v.literal("past_due"),
+      v.literal("canceled"),
+      v.literal("unpaid"),
+      v.literal("paused")
+    ),
+    
+    // Billing
+    interval: v.union(v.literal("month"), v.literal("year")),
+    currentPeriodStart: v.number(),
+    currentPeriodEnd: v.number(),
+    
+    // Stripe info
+    stripeCustomerId: v.string(),
+    stripeSubscriptionId: v.string(),
+    stripePriceId: v.string(),
+    
+    // Cancellation
+    cancelAtPeriodEnd: v.boolean(),
+    canceledAt: v.optional(v.number()),
+    
+    // Trial
+    trialStart: v.optional(v.number()),
+    trialEnd: v.optional(v.number()),
+    
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_stripe_customer", ["stripeCustomerId"])
+    .index("by_stripe_subscription", ["stripeSubscriptionId"])
+    .index("by_status", ["status"]),
+
+  // Invoices
+  invoices: defineTable({
+    userId: v.id("users"),
+    subscriptionId: v.optional(v.id("userSubscriptions")),
+    
+    // Invoice details
+    stripeInvoiceId: v.string(),
+    stripePaymentIntentId: v.optional(v.string()),
+    
+    amount: v.number(), // in cents
+    currency: v.string(),
+    status: v.union(
+      v.literal("draft"),
+      v.literal("open"),
+      v.literal("paid"),
+      v.literal("uncollectible"),
+      v.literal("void")
+    ),
+    
+    // Line items
+    items: v.array(v.object({
+      description: v.string(),
+      amount: v.number(),
+      periodStart: v.optional(v.number()),
+      periodEnd: v.optional(v.number()),
+    })),
+    
+    // Dates
+    createdAt: v.number(),
+    dueDate: v.optional(v.number()),
+    paidAt: v.optional(v.number()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_stripe_invoice", ["stripeInvoiceId"])
+    .index("by_status", ["status"])
+    .index("by_created", ["createdAt"]),
+
+  // Usage metrics (for analytics)
+  usageMetrics: defineTable({
+    userId: v.id("users"),
+    
+    // Time period
+    date: v.string(), // YYYY-MM-DD
+    hour: v.optional(v.number()), // 0-23 for hourly granularity
+    
+    // Usage breakdown
+    metrics: v.object({
+      // Tool usage
+      grammarChecks: v.number(),
+      paraphraseRequests: v.number(),
+      aiDetectorScans: v.number(),
+      translations: v.number(),
+      humanizeRequests: v.number(),
+      summaries: v.number(),
+      
+      // AI tokens
+      aiTokensInput: v.number(),
+      aiTokensOutput: v.number(),
+      aiCost: v.number(), // in cents
+      
+      // Projects
+      projectsCreated: v.number(),
+      wordsWritten: v.number(),
+      exports: v.number(),
+      
+      // Engagement
+      sessions: v.number(),
+      sessionDuration: v.number(), // total seconds
+    }),
+    
+    // Revenue
+    revenue: v.optional(v.number()), // in cents
+    
+    createdAt: v.number(),
+  })
+    .index("by_user_and_date", ["userId", "date"])
+    .index("by_date", ["date"])
+    .index("by_user_and_hour", ["userId", "hour"]),
+
+  // Credit adjustments (admin actions)
+  creditAdjustments: defineTable({
+    userId: v.id("users"),
+    adminId: v.id("users"), // who made the adjustment
+    
+    amount: v.number(),
+    reason: v.string(),
+    
+    // Before/after
+    balanceBefore: v.number(),
+    balanceAfter: v.number(),
+    
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_admin", ["adminId"])
+    .index("by_created", ["createdAt"]),
+
+  // Webhook events (from Stripe)
+  webhookEvents: defineTable({
+    id: v.string(),
+    
+    // Event details
+    stripeEventId: v.string(),
+    type: v.string(), // 'invoice.payment_succeeded', etc.
+    
+    // Payload (sanitized)
+    payload: v.object({
+      object: v.string(), // 'invoice', 'subscription', etc.
+      objectId: v.string(),
+      customerId: v.optional(v.string()),
+      status: v.optional(v.string()),
+    }),
+    
+    // Processing
+    processed: v.boolean(),
+    processedAt: v.optional(v.number()),
+    error: v.optional(v.string()),
+    
+    createdAt: v.number(),
+  })
+    .index("by_stripe_event", ["stripeEventId"])
+    .index("by_type", ["type"])
+    .index("by_processed", ["processed"])
+    .index("by_created", ["createdAt"]),
 });
