@@ -277,4 +277,56 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_user_and_project", ["userId", "projectId"])
     .index("by_timestamp", ["timestamp"]),
+
+  // API Keys for external developers
+  apiKeys: defineTable({
+    id: v.string(),
+    userId: v.string(),
+    name: v.string(),
+    keyHash: v.string(),
+    keyPrefix: v.string(),
+    permissions: v.array(v.string()),
+    createdAt: v.number(),
+    expiresAt: v.optional(v.number()),
+    lastUsedAt: v.optional(v.number()),
+    usageCount: v.number(),
+    rateLimit: v.number(),
+    allowedIPs: v.optional(v.array(v.string())),
+    isRevoked: v.boolean(),
+  })
+    .index("by_hash", ["keyHash"])
+    .index("by_user", ["userId"])
+    .index("by_id", ["id"]),
+
+  // Security events for monitoring
+  securityEvents: defineTable({
+    id: v.string(),
+    timestamp: v.number(),
+    type: v.union(
+      v.literal("auth_failure"),
+      v.literal("rate_limit"),
+      v.literal("suspicious"),
+      v.literal("violation"),
+      v.literal("error")
+    ),
+    severity: v.union(
+      v.literal("low"),
+      v.literal("medium"),
+      v.literal("high"),
+      v.literal("critical")
+    ),
+    source: v.object({
+      ip: v.string(),
+      userAgent: v.optional(v.string()),
+      userId: v.optional(v.string()),
+    }),
+    details: v.object({
+      path: v.string(),
+      method: v.string(),
+      description: v.string(),
+    }),
+  })
+    .index("by_timestamp", ["timestamp"])
+    .index("by_type", ["type"])
+    .index("by_severity", ["severity"]),
 });

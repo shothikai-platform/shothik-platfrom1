@@ -6,6 +6,9 @@ import {
   MAX_RATE_LIMIT_STORE_SIZE,
 } from "./lib/rate-limit-config";
 import { incrementCounter, setGauge, maybeLogMetrics } from "./lib/runtime-metrics";
+import { authenticateApiKey } from "./lib/security/api-keys";
+import { owaspMiddleware, addSecurityHeaders as addOwaspHeaders } from "./lib/security/owasp-compliance";
+import { detectSuspiciousActivity, isIPBlocked, logSecurityEvent } from "./lib/security/monitoring";
 
 const RATE_LIMIT_STORE = new Map<string, { timestamps: number[] }>();
 
@@ -119,22 +122,99 @@ async function verifyJWT(token: string): Promise<{ valid: boolean; payload?: any
 }
 
 export async function middleware(req: NextRequest) {
+  const startTime = Date.now();
   const { pathname } = req.nextUrl;
   const token = req.cookies.get("jwt_token")?.value;
+  const clientIP = getClientId(req);
 
-  // API routes - apply rate limiting and auth
+  // 1. Check if IP is blocked
+  const blockCheck = await isIPBlocked(clientIP);
+  if (blockCheck.blocked) {
+    await logSecurityEvent({
+      type: "violation",
+      severity: "medium",
+      source: { ip: clientIP },
+      details: {
+        path: pathname,
+        method: req.method,
+        description: `Blocked IP attempted access: ${blockCheck.reason}`,
+      },
+    });
+    return addSecurityHeaders(
+      new NextResponse(JSON.stringify({ error: "Access denied" }), { status: 403 })
+    );
+  }
+
+  // 2. Detect suspicious activity
+  const suspiciousCheck = await detectSuspiciousActivity(req);
+  if (suspiciousCheck.action === "block") {
+    await logSecurityEvent({
+      type: "suspicious",
+      severity: "high",
+      source: { ip: clientIP },
+      details: {
+        path: pathname,
+        method: req.method,
+        description: suspiciousCheck.reasons.join("; "),
+      },
+    });
+    return addSecurityHeaders(
+      new NextResponse(JSON.stringify({ error: "Suspicious activity detected" }), { status: 403 })
+    );
+  }
+
+  // API routes - apply rate limiting, auth, and OWASP checks
   if (pathname.startsWith("/api/")) {
     cleanupStore();
+
+    // 3. OWASP API Security checks
+    const owaspResult = await owaspMiddleware(req);
+    if (owaspResult) return owaspResult;
 
     // Public health check endpoints
     if (pathname === "/api/health" || pathname.startsWith("/api/.well-known")) {
       return addSecurityHeaders(NextResponse.next());
     }
 
+    // 4. API Key authentication (if Bearer token present)
+    const authHeader = req.headers.get("authorization");
+    if (authHeader?.startsWith("Bearer ")) {
+      const apiKeyResult = await authenticateApiKey(req);
+      if (!apiKeyResult.success) {
+        await logSecurityEvent({
+          type: "auth_failure",
+          severity: "medium",
+          source: { ip: clientIP },
+          details: {
+            path: pathname,
+            method: req.method,
+            description: apiKeyResult.error || "API key authentication failed",
+          },
+        });
+
+        const response = new NextResponse(
+          JSON.stringify({ error: apiKeyResult.error }),
+          { status: apiKeyResult.status || 401 }
+        );
+
+        if (apiKeyResult.headers) {
+          Object.entries(apiKeyResult.headers).forEach(([key, value]) => {
+            response.headers.set(key, value);
+          });
+        }
+        return addSecurityHeaders(response);
+      }
+
+      // Add API key user context
+      (req as any).apiKeyUser = {
+        userId: apiKeyResult.userId,
+        permissions: apiKeyResult.permissions,
+      };
+    }
+
     // Auth endpoints - stricter rate limiting
     if (pathname.startsWith("/api/auth/")) {
-      const clientId = getClientId(req);
-      const rateLimitKey = `auth:${clientId}`;
+      const rateLimitKey = `auth:${clientIP}`;
       const { limited, resetAt } = checkRateLimit(rateLimitKey, {
         windowMs: 15 * 60 * 1000, // 15 minutes
         maxRequests: 10, // 10 attempts
@@ -142,6 +222,16 @@ export async function middleware(req: NextRequest) {
 
       if (limited) {
         const retryAfter = Math.ceil((resetAt - Date.now()) / 1000);
+        await logSecurityEvent({
+          type: "rate_limit",
+          severity: "low",
+          source: { ip: clientIP },
+          details: {
+            path: pathname,
+            method: req.method,
+            description: "Auth rate limit exceeded",
+          },
+        });
         return addSecurityHeaders(
           new NextResponse(
             JSON.stringify({
@@ -170,7 +260,7 @@ export async function middleware(req: NextRequest) {
       "/api/admin/",
     ];
 
-    const isProtected = protectedRoutes.some((route) =
+    const isProtected = protectedRoutes.some((route) =>
       pathname.startsWith(route)
     );
 
@@ -190,6 +280,16 @@ export async function middleware(req: NextRequest) {
       const { valid, error } = await verifyJWT(token);
 
       if (!valid) {
+        await logSecurityEvent({
+          type: "auth_failure",
+          severity: "medium",
+          source: { ip: clientIP },
+          details: {
+            path: pathname,
+            method: req.method,
+            description: `JWT verification failed: ${error}`,
+          },
+        });
         return addSecurityHeaders(
           new NextResponse(
             JSON.stringify({ error: "Invalid token", details: error }),
@@ -203,9 +303,8 @@ export async function middleware(req: NextRequest) {
     }
 
     // General rate limiting
-    const clientId = getClientId(req);
     const routePrefix = "/" + pathname.split("/").slice(1, 3).join("/");
-    const rateLimitKey = `${clientId}:${routePrefix}`;
+    const rateLimitKey = `${clientIP}:${routePrefix}`;
     const rateConfig = getRateLimitForPath(pathname);
 
     const { limited, remaining, resetAt } = checkRateLimit(
@@ -215,6 +314,16 @@ export async function middleware(req: NextRequest) {
 
     if (limited) {
       const retryAfter = Math.ceil((resetAt - Date.now()) / 1000);
+      await logSecurityEvent({
+        type: "rate_limit",
+        severity: "low",
+        source: { ip: clientIP },
+        details: {
+          path: pathname,
+          method: req.method,
+          description: "General rate limit exceeded",
+        },
+      });
       return addSecurityHeaders(
         new NextResponse(
           JSON.stringify({
@@ -245,6 +354,7 @@ export async function middleware(req: NextRequest) {
       "Cache-Control",
       "no-store, no-cache, must-revalidate"
     );
+    response.headers.set("X-Response-Time", `${Date.now() - startTime}ms`);
     return addSecurityHeaders(response);
   }
 
@@ -258,7 +368,9 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/dashboard", req.url));
   }
 
-  return addSecurityHeaders(NextResponse.next());
+  const response = NextResponse.next();
+  response.headers.set("X-Response-Time", `${Date.now() - startTime}ms`);
+  return addSecurityHeaders(response);
 }
 
 export const config = {
