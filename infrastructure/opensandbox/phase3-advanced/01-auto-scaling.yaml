@@ -1,0 +1,227 @@
+# OpenSandbox Phase 3: Advanced Features
+# Auto-scaling, Monitoring, Disaster Recovery
+
+---
+# Custom Metrics API for Sandbox Pool
+apiVersion: apiregistration.k8s.io/v1
+kind: APIService
+metadata:
+  name: v1beta1.custom.metrics.k8s.io
+spec:
+  service:
+    name: custom-metrics-apiserver
+    namespace: opensandbox
+  group: custom.metrics.k8s.io
+  version: v1beta1
+  insecureSkipTLSVerify: true
+  groupPriorityMinimum: 100
+  versionPriority: 100
+
+---
+# Sandbox Pool Auto-scaler Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sandbox-pool-autoscaler
+  namespace: opensandbox
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sandbox-pool-autoscaler
+  template:
+    metadata:
+      labels:
+        app: sandbox-pool-autoscaler
+    spec:
+      serviceAccountName: sandbox-autoscaler
+      containers:
+      - name: autoscaler
+        image: shothik/sandbox-autoscaler:latest
+        env:
+        - name: MIN_POOL_SIZE
+          value: "5"
+        - name: MAX_POOL_SIZE
+          value: "100"
+        - name: SCALE_UP_THRESHOLD
+          value: "0.8"
+        - name: SCALE_DOWN_THRESHOLD
+          value: "0.3"
+        - name: SCALE_UP_COOLDOWN
+          value: "60"
+        - name: SCALE_DOWN_COOLDOWN
+          value: "300"
+        - name: METRICS_WINDOW
+          value: "5m"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+
+---
+# Horizontal Pod Autoscaler for Sandboxes
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: sandbox-pool-hpa
+  namespace: opensandbox
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: sandbox-pool
+  minReplicas: 5
+  maxReplicas: 100
+  metrics:
+  - type: Pods
+    pods:
+      metric:
+        name: sandbox_utilization
+      target:
+        type: AverageValue
+        averageValue: "80"
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 60
+      - type: Pods
+        value: 10
+        periodSeconds: 60
+      selectPolicy: Max
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+      - type: Pods
+        value: 5
+        periodSeconds: 60
+      selectPolicy: Min
+
+---
+# Cluster Autoscaler Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-autoscaler-config
+  namespace: kube-system
+data:
+  settings: |
+    {
+      "scanInterval": "10s",
+      "scaleDownDelayAfterAdd": "10m",
+      "scaleDownDelayAfterDelete": "10s",
+      "scaleDownDelayAfterFailure": "3m",
+      "scaleDownUnneededTime": "10m",
+      "scaleDownUtilizationThreshold": 0.5,
+      "skipNodesWithLocalStorage": false,
+      "skipNodesWithSystemPods": true,
+      "balanceSimilarNodeGroups": true,
+      "expander": "priority"
+    }
+
+---
+# Priority Expander for Node Groups
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-autoscaler-priority-expander
+  namespace: kube-system
+data:
+  priorities: |
+    10:
+      - .*spot.*
+    20:
+      - .*on-demand.*
+    50:
+      - .*gpu.*
+
+---
+# KEDA ScaledObject for Event-driven Scaling
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: sandbox-queue-scaler
+  namespace: opensandbox
+spec:
+  scaleTargetRef:
+    name: sandbox-pool
+  pollingInterval: 5
+  cooldownPeriod: 300
+  minReplicaCount: 5
+  maxReplicaCount: 100
+  triggers:
+  - type: metrics-api
+    metadata:
+      targetValue: "10"
+      url: "http://opensandbox-server.opensandbox:8080/metrics/queue-depth"
+      valueLocation: "data.queue_depth"
+  - type: cpu
+    metadata:
+      type: Utilization
+      value: "70"
+
+---
+# Predictive Scaling based on Schedule
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: predictive-scale-up
+  namespace: opensandbox
+spec:
+  schedule: "0 8 * * 1-5"  # 8 AM weekdays
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: scaler
+            image: bitnami/kubectl:latest
+            command:
+            - /bin/sh
+            - -c
+            - |
+              kubectl scale deployment sandbox-pool --replicas=20 -n opensandbox
+          restartPolicy: OnFailure
+
+---
+# Predictive Scale Down
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: predictive-scale-down
+  namespace: opensandbox
+spec:
+  schedule: "0 20 * * 1-5"  # 8 PM weekdays
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: scaler
+            image: bitnami/kubectl:latest
+            command:
+            - /bin/sh
+            - -c
+            - |
+              kubectl scale deployment sandbox-pool --replicas=5 -n opensandbox
+          restartPolicy: OnFailure

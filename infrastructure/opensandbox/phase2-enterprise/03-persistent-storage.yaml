@@ -1,0 +1,164 @@
+# OpenSandbox Persistent Storage
+# Phase 2: Enterprise Features
+
+---
+# Storage Class for Fast SSD
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: sandbox-fast-ssd
+provisioner: kubernetes.io/aws-ebs
+parameters:
+  type: gp3
+  iops: "10000"
+  throughput: "500"
+  encrypted: "true"
+  kmsKeyId: "arn:aws:kms:us-east-1:ACCOUNT:key/KEY-ID"
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
+
+---
+# Storage Class for Standard
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: sandbox-standard
+provisioner: kubernetes.io/aws-ebs
+parameters:
+  type: gp3
+  encrypted: "true"
+reclaimPolicy: Delete
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
+
+---
+# Persistent Volume Claim Template
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: user-data-template
+  namespace: shothik-tenant-{{ORG_ID}}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: sandbox-fast-ssd
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+# Shared Volume for Team Collaboration
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: team-shared-storage
+  namespace: shothik-tenant-{{ORG_ID}}
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: efs-sc  # AWS EFS for multi-read/write
+  resources:
+    requests:
+      storage: 100Gi
+
+---
+# EFS Storage Class (for ReadWriteMany)
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: efs-sc
+provisioner: efs.csi.aws.com
+parameters:
+  provisioningMode: efs-ap
+  fileSystemId: fs-xxxxxxxx
+  directoryPerms: "700"
+  gidRangeStart: "1000"
+  gidRangeEnd: "2000"
+  basePath: "/dynamic_provisioning"
+
+---
+# Volume Snapshot Class
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: sandbox-snapshot-class
+driver: ebs.csi.aws.com
+deletionPolicy: Retain
+parameters:
+  encrypted: "true"
+
+---
+# Backup CronJob
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: sandbox-backup
+  namespace: opensandbox
+spec:
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: backup
+            image: amazon/aws-cli:latest
+            command:
+            - /bin/sh
+            - -c
+            - |
+              # Create snapshots of all PVCs
+              for pvc in $(kubectl get pvc -n shothik-tenant-* -o name); do
+                echo "Creating snapshot for $pvc"
+                kubectl create volumesnapshot -n $(echo $pvc | cut -d'/' -f2) \
+                  --generate-name \
+                  --source-pvc=$(echo $pvc | cut -d'/' -f2) \
+                  --snapshot-class=sandbox-snapshot-class
+              done
+              
+              # Sync to S3
+              aws s3 sync /backup s3://shothik-sandbox-backups/$(date +%Y-%m-%d)/
+            env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: access-key-id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: secret-access-key
+          restartPolicy: OnFailure
+
+---
+# Data Retention Policy ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: data-retention-policy
+  namespace: opensandbox
+data:
+  policy.yaml: |
+    retention_policies:
+      user_data:
+        default_ttl_days: 90
+        max_storage_gb: 50
+        auto_cleanup: true
+      
+      audit_logs:
+        hot_storage_days: 30
+        cold_storage_days: 365
+        archive_after_days: 2555  # 7 years
+      
+      sandbox_snapshots:
+        keep_last: 10
+        daily_backups: 30
+        monthly_backups: 12
+        yearly_backups: 7
+      
+      temp_files:
+        ttl_hours: 24
+        auto_cleanup: true

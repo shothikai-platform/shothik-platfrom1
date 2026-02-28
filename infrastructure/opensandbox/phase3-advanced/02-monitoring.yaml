@@ -1,0 +1,275 @@
+# OpenSandbox Monitoring Stack
+# Phase 3: Advanced Features
+
+---
+# Prometheus Service Monitor
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: opensandbox-metrics
+  namespace: opensandbox
+  labels:
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: opensandbox-server
+  endpoints:
+  - port: metrics
+    interval: 15s
+    path: /metrics
+
+---
+# Prometheus Rules for Alerting
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: opensandbox-alerts
+  namespace: opensandbox
+  labels:
+    release: prometheus
+spec:
+  groups:
+  - name: opensandbox
+    rules:
+    # High sandbox utilization
+    - alert: HighSandboxUtilization
+      expr: |
+        (
+          opensandbox_active_sandboxes / opensandbox_sandbox_pool_size
+        ) > 0.9
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High sandbox pool utilization"
+        description: "Sandbox pool is {{ $value | humanizePercentage }} utilized"
+    
+    # Sandbox execution failures
+    - alert: HighSandboxFailureRate
+      expr: |
+        (
+          rate(opensandbox_sandbox_executions_total{status="failed"}[5m])
+          /
+          rate(opensandbox_sandbox_executions_total[5m])
+        ) > 0.1
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "High sandbox failure rate"
+        description: "{{ $value | humanizePercentage }} of sandbox executions are failing"
+    
+    # Long-running sandboxes
+    - alert: LongRunningSandbox
+      expr: |
+        opensandbox_sandbox_duration_seconds > 600
+      for: 1m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Long-running sandbox detected"
+        description: "Sandbox {{ $labels.sandbox_id }} has been running for {{ $value }}s"
+    
+    # Memory pressure
+    - alert: SandboxMemoryPressure
+      expr: |
+        (
+          container_memory_working_set_bytes{container="sandbox"}
+          /
+          container_spec_memory_limit_bytes{container="sandbox"}
+        ) > 0.95
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Sandbox memory pressure"
+        description: "Sandbox {{ $labels.pod }} is using {{ $value | humanizePercentage }} of memory limit"
+    
+    # Egress anomaly detection
+    - alert: HighEgressTraffic
+      expr: |
+        rate(opensandbox_sandbox_egress_bytes_total[5m]) > 104857600  # 100MB/s
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High egress traffic from sandbox"
+        description: "Sandbox {{ $labels.sandbox_id }} has {{ $value | humanize }}B/s egress"
+
+---
+# Grafana Dashboard ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opensandbox-dashboard
+  namespace: monitoring
+data:
+  opensandbox.json: |
+    {
+      "dashboard": {
+        "title": "OpenSandbox Overview",
+        "panels": [
+          {
+            "title": "Active Sandboxes",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "opensandbox_active_sandboxes",
+                "legendFormat": "Active"
+              }
+            ]
+          },
+          {
+            "title": "Pool Utilization",
+            "type": "gauge",
+            "targets": [
+              {
+                "expr": "opensandbox_active_sandboxes / opensandbox_sandbox_pool_size",
+                "legendFormat": "Utilization"
+              }
+            ]
+          },
+          {
+            "title": "Execution Duration",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, rate(opensandbox_sandbox_duration_seconds_bucket[5m]))",
+                "legendFormat": "p95"
+              },
+              {
+                "expr": "histogram_quantile(0.50, rate(opensandbox_sandbox_duration_seconds_bucket[5m]))",
+                "legendFormat": "p50"
+              }
+            ]
+          },
+          {
+            "title": "Executions by Status",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(opensandbox_sandbox_executions_total[5m])",
+                "legendFormat": "{{ status }}"
+              }
+            ]
+          },
+          {
+            "title": "Resource Usage by Tenant",
+            "type": "table",
+            "targets": [
+              {
+                "expr": "sum by (org_id) (opensandbox_sandbox_cpu_usage_seconds_total)",
+                "legendFormat": "{{ org_id }}"
+              }
+            ]
+          },
+          {
+            "title": "Egress Traffic",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(opensandbox_sandbox_egress_bytes_total[5m])",
+                "legendFormat": "{{ sandbox_id }}"
+              }
+            ]
+          }
+        ]
+      }
+    }
+
+---
+# Custom Metrics Exporter
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opensandbox-metrics-exporter
+  namespace: opensandbox
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: opensandbox-metrics-exporter
+  template:
+    metadata:
+      labels:
+        app: opensandbox-metrics-exporter
+    spec:
+      containers:
+      - name: exporter
+        image: prometheus/node-exporter:latest
+        ports:
+        - containerPort: 9100
+          name: metrics
+        resources:
+          limits:
+            memory: 100Mi
+          requests:
+            cpu: 50m
+            memory: 50Mi
+
+---
+# Jaeger Tracing
+apiVersion: jaegertracing.io/v1
+kind: Jaeger
+metadata:
+  name: opensandbox-tracing
+  namespace: opensandbox
+spec:
+  strategy: production
+  storage:
+    type: elasticsearch
+    options:
+      es:
+        server-urls: http://elasticsearch.logging.svc.cluster.local:9200
+  ingress:
+    enabled: false
+
+---
+# Log Aggregation with Loki
+apiVersion: loki.grafana.com/v1
+kind: LokiStack
+metadata:
+  name: opensandbox-logs
+  namespace: opensandbox
+spec:
+  size: 1x.small
+  storage:
+    schemas:
+    - version: v12
+      effectiveDate: "2024-01-01"
+    secret:
+      name: loki-s3
+      type: s3
+  tenants:
+    mode: openshift-logging
+
+---
+# Custom Business Metrics
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: business-metrics
+  namespace: opensandbox
+data:
+  metrics.yaml: |
+    metrics:
+      - name: sandbox_executions_by_tier
+        help: "Total sandbox executions by tenant tier"
+        type: counter
+        labels: [tier, status]
+      
+      - name: sandbox_revenue
+        help: "Estimated revenue from sandbox usage"
+        type: counter
+        labels: [org_id, tier]
+      
+      - name: sandbox_cost
+        help: "Infrastructure cost per sandbox"
+        type: gauge
+        labels: [instance_type]
+      
+      - name: sandbox_efficiency
+        help: "Resource utilization efficiency"
+        type: gauge
+        labels: [org_id]

@@ -1,0 +1,204 @@
+# OpenSandbox Audit Logging Infrastructure
+# Phase 2: Enterprise Features
+
+---
+# Audit Log ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: audit-config
+  namespace: opensandbox
+data:
+  audit-policy.yaml: |
+    apiVersion: audit.k8s.io/v1
+    kind: Policy
+    rules:
+    # Log sandbox creation/deletion
+    - level: RequestResponse
+      resources:
+      - group: ""
+        resources: ["pods"]
+      verbs: ["create", "delete"]
+      namespaces: ["opensandbox", "shothik-tenant-*"]
+    
+    # Log exec commands
+    - level: RequestResponse
+      resources:
+      - group: ""
+        resources: ["pods/exec"]
+      verbs: ["create"]
+      namespaces: ["opensandbox", "shothik-tenant-*"]
+    
+    # Log file operations
+    - level: Metadata
+      resources:
+      - group: ""
+        resources: ["pods"]
+      verbs: ["get", "list"]
+      namespaces: ["opensandbox", "shothik-tenant-*"]
+
+---
+# Fluentd DaemonSet for Log Collection
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: fluentd-audit
+  namespace: opensandbox
+  labels:
+    app: fluentd-audit
+spec:
+  selector:
+    matchLabels:
+      app: fluentd-audit
+  template:
+    metadata:
+      labels:
+        app: fluentd-audit
+    spec:
+      containers:
+      - name: fluentd
+        image: fluent/fluentd:v1.16-debian
+        env:
+        - name: FLUENTD_OPT
+          value: "-v"
+        volumeMounts:
+        - name: varlog
+          mountPath: /var/log
+        - name: audit-logs
+          mountPath: /var/log/audit
+        - name: fluentd-config
+          mountPath: /fluentd/etc
+        resources:
+          limits:
+            memory: 500Mi
+          requests:
+            cpu: 100m
+            memory: 200Mi
+      volumes:
+      - name: varlog
+        hostPath:
+          path: /var/log
+      - name: audit-logs
+        hostPath:
+          path: /var/log/audit
+      - name: fluentd-config
+        configMap:
+          name: fluentd-audit-config
+
+---
+# Fluentd Config
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluentd-audit-config
+  namespace: opensandbox
+data:
+  fluent.conf: |
+    <source>
+      @type tail
+      path /var/log/audit/sandbox-*.log
+      pos_file /var/log/fluent/sandbox-audit.pos
+      tag sandbox.audit
+      <parse>
+        @type json
+        time_key timestamp
+        time_format %Y-%m-%dT%H:%M:%S.%NZ
+      </parse>
+    </source>
+
+    <filter sandbox.audit>
+      @type record_transformer
+      enable_ruby true
+      <record>
+        org_id ${record.dig("user", "extra", "org_id") || "unknown"}
+        user_id ${record.dig("user", "username") || "unknown"}
+        sandbox_id ${record.dig("objectRef", "name")}
+        action ${record.dig("verb")}
+        timestamp ${time}
+      </record>
+    </filter>
+
+    # Output to Elasticsearch
+    <match sandbox.audit>
+      @type elasticsearch
+      host elasticsearch.logging.svc.cluster.local
+      port 9200
+      index_name sandbox-audit
+      type_name _doc
+      <buffer>
+        flush_interval 10s
+      </buffer>
+    </match>
+
+    # Also output to S3 for long-term storage
+    <match sandbox.audit>
+      @type s3
+      aws_key_id "#{ENV['AWS_ACCESS_KEY_ID']}"
+      aws_sec_key "#{ENV['AWS_SECRET_ACCESS_KEY']}"
+      s3_bucket shothik-audit-logs
+      s3_region us-east-1
+      path logs/%Y/%m/%d/
+      time_slice_format %Y%m%d%H
+      <buffer time>
+        timekey 3600
+        timekey_wait 10m
+        timekey_use_utc true
+      </buffer>
+    </match>
+
+---
+# Audit Log Schema (for reference)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: audit-schema
+  namespace: opensandbox
+data:
+  schema.json: |
+    {
+      "type": "object",
+      "properties": {
+        "timestamp": { "type": "string", "format": "date-time" },
+        "org_id": { "type": "string" },
+        "user_id": { "type": "string" },
+        "sandbox_id": { "type": "string" },
+        "action": { 
+          "type": "string",
+          "enum": ["create", "delete", "execute", "read", "write"]
+        },
+        "resource": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string" },
+            "namespace": { "type": "string" },
+            "name": { "type": "string" }
+          }
+        },
+        "request": {
+          "type": "object",
+          "properties": {
+            "command": { "type": "string" },
+            "code": { "type": "string" },
+            "url": { "type": "string" }
+          }
+        },
+        "response": {
+          "type": "object",
+          "properties": {
+            "exit_code": { "type": "integer" },
+            "stdout": { "type": "string" },
+            "stderr": { "type": "string" },
+            "duration_ms": { "type": "integer" }
+          }
+        },
+        "security": {
+          "type": "object",
+          "properties": {
+            "egress_bytes": { "type": "integer" },
+            "files_accessed": { "type": "array", "items": { "type": "string" } },
+            "blocked_commands": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      },
+      "required": ["timestamp", "org_id", "user_id", "sandbox_id", "action"]
+    }

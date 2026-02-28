@@ -1,0 +1,186 @@
+# OpenSandbox Kubernetes Deployment
+# Phase 1: Core Infrastructure
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: opensandbox
+  labels:
+    name: opensandbox
+    tier: infrastructure
+
+---
+# OpenSandbox Server Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opensandbox-server
+  namespace: opensandbox
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: opensandbox-server
+  template:
+    metadata:
+      labels:
+        app: opensandbox-server
+    spec:
+      containers:
+      - name: server
+        image: opensandbox/server:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SANDBOX_RUNTIME
+          value: "kubernetes"
+        - name: LOG_LEVEL
+          value: "info"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+
+---
+# OpenSandbox Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: opensandbox-server
+  namespace: opensandbox
+spec:
+  selector:
+    app: opensandbox-server
+  ports:
+  - port: 8080
+    targetPort: 8080
+  type: ClusterIP
+
+---
+# Horizontal Pod Autoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: opensandbox-server-hpa
+  namespace: opensandbox
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: opensandbox-server
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+
+---
+# Resource Quota
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: opensandbox-quota
+  namespace: opensandbox
+spec:
+  hard:
+    requests.cpu: "20"
+    requests.memory: 40Gi
+    limits.cpu: "40"
+    limits.memory: 80Gi
+    pods: "100"
+    persistentvolumeclaims: "50"
+
+---
+# Network Policy - Restrict Egress
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: sandbox-egress-restriction
+  namespace: opensandbox
+spec:
+  podSelector:
+    matchLabels:
+      app: sandbox
+  policyTypes:
+  - Egress
+  egress:
+  # Allow DNS
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: UDP
+      port: 53
+  # Allow HTTPS only
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+    ports:
+    - protocol: TCP
+      port: 443
+
+---
+# Service Account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: opensandbox-sa
+  namespace: opensandbox
+
+---
+# RBAC - Sandbox Manager
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: sandbox-manager
+  namespace: opensandbox
+rules:
+- apiGroups: [""]
+  resources: ["pods", "pods/exec", "pods/log"]
+  verbs: ["create", "get", "list", "watch", "delete"]
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["create", "get", "list", "delete"]
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list"]
+
+---
+# Role Binding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: sandbox-manager-binding
+  namespace: opensandbox
+subjects:
+- kind: ServiceAccount
+  name: opensandbox-sa
+  namespace: opensandbox
+roleRef:
+  kind: Role
+  name: sandbox-manager
+  apiGroup: rbac.authorization.k8s.io

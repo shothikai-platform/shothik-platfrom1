@@ -1,0 +1,92 @@
+# Sandbox ConfigMaps for Shothik Tools
+# Phase 1: Core Sandboxes
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sandbox-images
+  namespace: opensandbox
+data:
+  # Code Interpreter for AI code execution
+  code-interpreter: "opensandbox/code-interpreter:v1.0.1"
+  
+  # Chrome for browser automation
+  chrome: "opensandbox/chrome:v1.0.0"
+  
+  # Playwright for web scraping
+  playwright: "opensandbox/playwright:v1.0.0"
+  
+  # Document processing
+  document-processor: "shothik/document-processor:latest"
+  
+  # Slide generation with Puppeteer
+  slide-renderer: "shothik/slide-renderer:latest"
+
+---
+# Sandbox Resource Limits
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sandbox-limits
+  namespace: opensandbox
+data:
+  # Default resource limits for sandboxes
+  default-cpu-request: "500m"
+  default-cpu-limit: "1000m"
+  default-memory-request: "512Mi"
+  default-memory-limit: "1Gi"
+  default-timeout: "300"  # 5 minutes
+  
+  # High-performance for intensive tasks
+  high-cpu-request: "1000m"
+  high-cpu-limit: "2000m"
+  high-memory-request: "1Gi"
+  high-memory-limit: "2Gi"
+  high-timeout: "600"  # 10 minutes
+  
+  # Minimal for quick tasks
+  minimal-cpu-request: "100m"
+  minimal-cpu-limit: "200m"
+  minimal-memory-request: "128Mi"
+  minimal-memory-limit: "256Mi"
+  minimal-timeout: "60"  # 1 minute
+
+---
+# Security Policies
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sandbox-security
+  namespace: opensandbox
+data:
+  # Allowed domains for egress
+  allowed-domains: |
+    api.openai.com
+    api.moonshot.cn
+    api.deepseek.com
+    generativelanguage.googleapis.com
+    api.elevenlabs.io
+    api.suno.ai
+    api.semanticscholar.org
+    serpapi.com
+    
+  # Blocked commands
+  blocked-commands: |
+    rm -rf /
+    mkfs
+    dd if=/dev/zero
+    :(){ :|:& };:
+    
+  # File type restrictions
+  allowed-file-types: |
+    .py
+    .js
+    .ts
+    .json
+    .txt
+    .md
+    .pdf
+    .docx
+    .pptx
+    .html
+    .css

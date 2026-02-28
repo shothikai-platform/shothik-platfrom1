@@ -1,0 +1,159 @@
+# OpenSandbox Phase 2: Enterprise Features
+# Multi-tenant Isolation, Audit Logging, Persistent Storage
+
+---
+# Multi-tenant Namespace Template
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: shothik-tenant-template
+  labels:
+    tenant: "{{ORG_ID}}"
+    tier: "enterprise"
+    managed-by: "opensandbox"
+
+---
+# Tenant Resource Quota
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: tenant-quota
+  namespace: shothik-tenant-{{ORG_ID}}
+spec:
+  hard:
+    requests.cpu: "10"
+    requests.memory: 20Gi
+    limits.cpu: "20"
+    limits.memory: 40Gi
+    pods: "50"
+    persistentvolumeclaims: "20"
+    services: "10"
+    secrets: "20"
+    configmaps: "20"
+
+---
+# Tenant Limit Range
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: tenant-limits
+  namespace: shothik-tenant-{{ORG_ID}}
+spec:
+  limits:
+  - default:
+      cpu: "1000m"
+      memory: "1Gi"
+    defaultRequest:
+      cpu: "100m"
+      memory: "256Mi"
+    max:
+      cpu: "2000m"
+      memory: "2Gi"
+    min:
+      cpu: "50m"
+      memory: "128Mi"
+    type: Container
+
+---
+# Network Policy - Tenant Isolation
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tenant-isolation
+  namespace: shothik-tenant-{{ORG_ID}}
+spec:
+  podSelector:
+    matchLabels:
+      tenant: "{{ORG_ID}}"
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Only allow from same tenant
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          tenant: "{{ORG_ID}}"
+  egress:
+  # Allow DNS
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: UDP
+      port: 53
+  # Allow HTTPS to approved domains
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+    ports:
+    - protocol: TCP
+      port: 443
+
+---
+# Pod Security Policy
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: tenant-restricted
+  namespace: shothik-tenant-{{ORG_ID}}
+spec:
+  privileged: false
+  allowPrivilegeEscalation: false
+  requiredDropCapabilities:
+    - ALL
+  volumes:
+    - 'configMap'
+    - 'emptyDir'
+    - 'persistentVolumeClaim'
+    - 'secret'
+  runAsUser:
+    rule: 'MustRunAsNonRoot'
+  seLinux:
+    rule: 'RunAsAny'
+  fsGroup:
+    rule: 'RunAsAny'
+
+---
+# Service Account per Tenant
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tenant-sa
+  namespace: shothik-tenant-{{ORG_ID}}
+  labels:
+    tenant: "{{ORG_ID}}"
+
+---
+# Tenant Role
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: tenant-sandbox-manager
+  namespace: shothik-tenant-{{ORG_ID}}
+rules:
+- apiGroups: [""]
+  resources: ["pods", "pods/exec", "pods/log"]
+  verbs: ["create", "get", "list", "watch", "delete"]
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["create", "get", "list", "delete"]
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  verbs: ["get", "list"]
+  resourceNames: ["tenant-*"]
+
+---
+# Role Binding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tenant-sandbox-binding
+  namespace: shothik-tenant-{{ORG_ID}}
+subjects:
+- kind: ServiceAccount
+  name: tenant-sa
+  namespace: shothik-tenant-{{ORG_ID}}
+roleRef:
+  kind: Role
+  name: tenant-sandbox-manager
+  apiGroup: rbac.authorization.k8s.io

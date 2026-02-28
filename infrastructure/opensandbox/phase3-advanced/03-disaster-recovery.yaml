@@ -1,0 +1,279 @@
+# OpenSandbox Disaster Recovery
+# Phase 3: Advanced Features
+
+---
+# Velero Backup Schedule
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: opensandbox-daily-backup
+  namespace: velero
+spec:
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  template:
+    includedNamespaces:
+    - opensandbox
+    - shothik-tenant-*
+    excludedResources:
+    - events
+    - pods
+    labelSelector:
+      matchLabels:
+        backup-enabled: "true"
+    storageLocation: aws-primary
+    volumeSnapshotLocations:
+    - aws-primary
+    ttl: 720h0m0s  # 30 days
+
+---
+# Hourly Incremental Backup
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: opensandbox-hourly-backup
+  namespace: velero
+spec:
+  schedule: "0 * * * *"  # Every hour
+  template:
+    includedNamespaces:
+    - opensandbox
+    labelSelector:
+      matchLabels:
+        backup-frequency: "hourly"
+    storageLocation: aws-primary
+    ttl: 168h0m0s  # 7 days
+
+---
+# Cross-Region Replication
+apiVersion: velero.io/v1
+kind: BackupStorageLocation
+metadata:
+  name: aws-secondary
+  namespace: velero
+spec:
+  provider: aws
+  objectStorage:
+    bucket: shothik-sandbox-backups-dr
+    prefix: disaster-recovery
+  config:
+    region: us-west-2
+    s3ForcePathStyle: "false"
+    # Enable cross-region replication
+    replicationConfiguration:
+      role: arn:aws:iam::ACCOUNT:role/VeleroReplication
+      rules:
+      - id: "cross-region"
+        status: Enabled
+        destination:
+          bucket: arn:aws:s3:::shothik-sandbox-backups-dr-west
+
+---
+# Disaster Recovery Runbook (ConfigMap)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: disaster-recovery-runbook
+  namespace: opensandbox
+data:
+  runbook.md: |
+    # OpenSandbox Disaster Recovery Runbook
+    
+    ## Scenario 1: Complete Cluster Failure
+    
+    ### Detection
+    - Alert: `cluster_health_status == 0`
+    - PagerDuty: P1 incident
+    
+    ### Response
+    1. **Assess Impact** (5 min)
+       ```bash
+       kubectl get nodes --all-namespaces
+       velero backup get
+       ```
+    
+    2. **Activate DR Site** (10 min)
+       ```bash
+       # Switch to DR cluster
+       kubectl config use-context dr-cluster
+       
+       # Restore from latest backup
+       velero restore create --from-backup opensandbox-daily-backup-$(date +%Y%m%d)
+       ```
+    
+    3. **Verify Restoration** (15 min)
+       - Check all pods running
+       - Verify data integrity
+       - Test sandbox creation
+    
+    4. **Update DNS** (5 min)
+       - Route traffic to DR cluster
+       - Update load balancer
+    
+    ### Recovery Time Objective (RTO): 35 minutes
+    ### Recovery Point Objective (RPO): 1 hour
+    
+    ## Scenario 2: Data Corruption
+    
+    ### Response
+    1. Identify corrupted namespace
+    2. Restore from point-in-time snapshot
+    3. Validate data integrity
+    
+    ## Scenario 3: Security Incident
+    
+    ### Response
+    1. Isolate affected sandboxes
+    2. Capture forensic snapshots
+    3. Rotate all credentials
+    4. Restore from clean backup
+
+---
+# Multi-Region Deployment
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: opensandbox-dr
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/shothikai-platform/shothik-platfrom1.git
+    targetRevision: main
+    path: infrastructure/opensandbox
+  destination:
+    server: https://dr-cluster-api.example.com
+    namespace: opensandbox
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+
+---
+# Health Check Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: health-check-service
+  namespace: opensandbox
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: health-check-service
+  template:
+    metadata:
+      labels:
+        app: health-check-service
+    spec:
+      containers:
+      - name: health-check
+        image: shothik/health-check:latest
+        env:
+        - name: CHECK_INTERVAL
+          value: "30"
+        - name: ENDPOINTS
+          value: "opensandbox-server:8080/health,opensandbox-metrics:9100/metrics"
+        - name: ALERT_WEBHOOK
+          valueFrom:
+            secretKeyRef:
+              name: alert-webhook
+              key: url
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+
+---
+# Data Integrity Checker
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: data-integrity-check
+  namespace: opensandbox
+spec:
+  schedule: "0 */6 * * *"  # Every 6 hours
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: checker
+            image: shothik/integrity-checker:latest
+            command:
+            - /bin/sh
+            - -c
+            - |
+              # Check PVC integrity
+              for pvc in $(kubectl get pvc -n opensandbox -o name); do
+                echo "Checking $pvc"
+                # Verify checksums
+                # Report anomalies
+              done
+              
+              # Verify audit log continuity
+              # Check for gaps in timestamps
+              
+              # Validate backup integrity
+              velero backup describe --details
+          restartPolicy: OnFailure
+
+---
+# Failover Automation
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: failover-test
+  namespace: opensandbox
+spec:
+  schedule: "0 0 * * 0"  # Weekly on Sunday
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: failover-test
+            image: bitnami/kubectl:latest
+            command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Running DR failover test..."
+              
+              # 1. Create test sandbox
+              curl -X POST http://opensandbox-server:8080/sandboxes \
+                -H "Content-Type: application/json" \
+                -d '{"image":"test","command":["echo","test"]}'
+              
+              # 2. Verify functionality
+              # 3. Cleanup
+              # 4. Report results
+              
+              echo "DR test complete"
+          restartPolicy: OnFailure
+
+---
+# Backup Verification
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-verification
+  namespace: velero
+spec:
+  schedule: "0 3 * * *"  # Daily at 3 AM (after backup)
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: verify
+            image: velero/velero:latest
+            command:
+            - /velero
+            args:
+            - backup
+            - describe
+            - --details
+            - opensandbox-daily-backup-$(date +%Y%m%d)
+          restartPolicy: OnFailure
