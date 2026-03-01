@@ -9,6 +9,7 @@ import { incrementCounter, setGauge, maybeLogMetrics } from "./lib/runtime-metri
 import { authenticateApiKey } from "./lib/security/api-keys";
 import { owaspMiddleware, addSecurityHeaders as addOwaspHeaders } from "./lib/security/owasp-compliance";
 import { detectSuspiciousActivity, isIPBlocked, logSecurityEvent } from "./lib/security/monitoring";
+import { checkDDoSProtection } from "./lib/security/ddos-protection";
 
 const RATE_LIMIT_STORE = new Map<string, { timestamps: number[] }>();
 
@@ -126,6 +127,37 @@ export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const token = req.cookies.get("jwt_token")?.value;
   const clientIP = getClientId(req);
+
+  // 0. DDoS Protection (Layer 0 - First line of defense)
+  const ddosCheck = await checkDDoSProtection(req);
+  if (!ddosCheck.allowed) {
+    await logSecurityEvent({
+      type: "violation",
+      severity: "high",
+      source: { ip: clientIP },
+      details: {
+        path: pathname,
+        method: req.method,
+        description: `DDoS protection triggered: ${ddosCheck.reason}`,
+      },
+    });
+
+    const response = new NextResponse(
+      JSON.stringify({ 
+        error: "Request blocked", 
+        reason: ddosCheck.reason,
+        retryAfter: ddosCheck.retryAfter 
+      }), 
+      { 
+        status: ddosCheck.action === "challenge" ? 403 : 429,
+        headers: {
+          "Content-Type": "application/json",
+          ...(ddosCheck.retryAfter ? { "Retry-After": String(ddosCheck.retryAfter) } : {})
+        }
+      }
+    );
+    return addSecurityHeaders(response);
+  }
 
   // 1. Check if IP is blocked
   const blockCheck = await isIPBlocked(clientIP);
