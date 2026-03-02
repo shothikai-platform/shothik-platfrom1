@@ -676,4 +676,20 @@ export default defineSchema({
   })
     .index("by_user", ["userId"])
     .index("by_document", ["documentId"]),
+
+  // ==========================================
+  // COGNEE MEMORY (AI Agent Memory)
+  // ==========================================
+
+  memories: defineTable({
+    userId: v.id("users"),
+    text: v.string(),
+    type: v.string(), // 'conversation', 'research', 'writing', etc.
+    metadata: v.optional(v.any()),
+    cogneeId: v.optional(v.string()), // Reference to Cognee graph
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_and_type", ["userId", "type"])
+    .index("by_created", ["createdAt"]),
 });
